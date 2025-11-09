@@ -1,0 +1,122 @@
+{% extends "ecommercemodule/base.html" %}
+{% load static %}
+{% block title %}Your Shopping Cart{% endblock %}
+{% block extra_css %}
+<style>
+    /* Remove arrows from number input */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <p class="text-uppercase text-muted small mb-1">Review &amp; adjust</p>
+    <h1 class="h3 mb-0">Your Shopping Cart</h1>
+</div>
+<div class="{% if not rows %}d-none{% endif %}">
+    <div class="table-responsive bg-white rounded-3 shadow-sm">
+        <table class="table align-middle mb-0">
+            <thead class="table-light text-uppercase small">
+                <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col" class="text-center" style="width: 210px;">Quantity</th>
+                    <th scope="col">Unit price</th>
+                    <th scope="col">Subtotal</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item, form in rows %}
+                <tr class="border-bottom">
+                    <td>
+                        <a href="{% url 'ecommercemodule:product_detail' item.product.pk %}" class="fw-semibold text-decoration-none text-dark">
+                            {{ item.product.name }}
+                        </a>
+                        <div class="text-muted small">SKU: {{ item.product.sku }}</div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center justify-content-center gap-2">
+                            <form method="post" action="{% url 'ecommercemodule:update_cart_item' item.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="quantity" value="{{ item.quantity|add:'-1' }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="submit">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            </form>
+                            <span class="fw-semibold mx-2" style="min-width: 40px; text-align: center;">{{ item.quantity }}</span>
+                            <form method="post" action="{% url 'ecommercemodule:update_cart_item' item.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="quantity" value="{{ item.quantity|add:'1' }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="submit" {% if item.quantity >= item.product.quantity_on_hand %}disabled{% endif %}>
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                    <td class="text-nowrap fw-semibold">${{ item.product.unit_price|floatformat:2 }}</td>
+                    <td class="text-nowrap fw-semibold">${{ item.line_total|floatformat:2 }}</td>
+                    <td class="text-end">
+                        <form method="post" action="{% url 'ecommercemodule:remove_from_cart' item.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button class="btn btn-outline-danger btn-sm" type="submit">
+                                Remove
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mt-4">
+        <div class="text-muted small">
+            Need help? <a href="{% url 'ecommercemodule:category_list' %}">Continue shopping</a>
+        </div>
+        <div class="text-end">
+            <p class="text-muted mb-1">Subtotal ({{ item_count|default:0 }} items)</p>
+            <h4 class="mb-3">${{ cart_total|floatformat:2 }}</h4>
+            {% if user.is_authenticated %}
+            <a class="btn btn-success px-4" href="{% url 'ecommercemodule:checkout' %}">Proceed to checkout</a>
+            {% else %}
+            <a class="btn btn-primary px-4" href="{% url 'ecommercemodule:login' %}?next={% url 'ecommercemodule:checkout' %}">Log in to checkout</a>
+            <p class="text-muted small mt-2 mb-0">You need an AuroraMart account to place an order.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="{% if rows %}d-none{% endif %} text-center py-5 bg-white rounded-3 shadow-sm">
+    <h4 class="mb-3">Your cart is empty</h4>
+    <p class="text-muted mb-4">Browse our categories to discover fresh picks.</p>
+    <a class="btn btn-outline-primary" href="{% url 'ecommercemodule:category_list' %}">Browse products</a>
+</div>
+<div class="mt-5">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="mb-0">Complete the set - Recommended for you</h5>
+        <a class="btn btn-link btn-sm text-decoration-none" href="{% url 'ecommercemodule:category_list' %}">See more</a>
+    </div>
+    <div class="row g-3">
+        {% for product in suggested_products %}
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 shadow-sm hover-card">
+                <div class="card-body d-flex flex-column">
+                    <h6 class="fw-semibold">{{ product.name }}</h6>
+                    <p class="text-muted mb-3">${{ product.unit_price|floatformat:2 }}</p>
+                    <a class="btn btn-outline-primary btn-sm mt-auto" href="{% url 'ecommercemodule:product_detail' product.pk %}">View</a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-muted mb-0">No suggestions available.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

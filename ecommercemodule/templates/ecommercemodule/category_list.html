@@ -1,0 +1,32 @@
+{% extends "ecommercemodule/base.html" %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+<h3>Shop by Category</h3>
+<div class="accordion" id="categoryAccordion">
+    {% for category in categories %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+            <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}">
+                {{ category.name }}
+            </button>
+        </h2>
+        <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" data-bs-parent="#categoryAccordion">
+            <div class="accordion-body">
+                <a class="d-block mb-2" href="{% url 'store:category_products' category.slug %}">All {{ category.name }}</a>
+                <div class="list-group">
+                    {% for sub in category.subcategories.all %}
+                    <a class="list-group-item list-group-item-action" href="{% url 'store:subcategory_products' category.slug sub.slug %}">
+                        {{ sub.name }}
+                    </a>
+                    {% empty %}
+                    <span class="text-muted">No subcategories.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <p>No categories defined.</p>
+    {% endfor %}
+</div>
+{% endblock %}

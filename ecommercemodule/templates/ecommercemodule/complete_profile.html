@@ -1,0 +1,128 @@
+{% extends "ecommercemodule/base.html" %}
+{% load static %}
+{% block title %}Complete Your Profile | AuroraMart{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4 p-lg-5">
+                <div class="text-center mb-4">
+                    <h1 class="h3 mb-2">Complete Your Profile</h1>
+                    <p class="text-muted">Help us personalize your shopping experience by sharing a few details.</p>
+                    <div class="alert alert-info small mt-3" role="alert">
+                        <strong>Why we ask:</strong> Based on your profile, we'll recommend products from categories you're most likely to love!
+                    </div>
+                </div>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.age.id_for_label }}" class="form-label fw-semibold">Age <span class="text-danger">*</span></label>
+                            {{ form.age }}
+                            {% if form.age.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.age.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">Must be between 18 and 100</small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.gender.id_for_label }}" class="form-label fw-semibold">Gender <span class="text-danger">*</span></label>
+                            {{ form.gender }}
+                            {% if form.gender.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.gender.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.employment_status.id_for_label }}" class="form-label fw-semibold">Employment Status <span class="text-danger">*</span></label>
+                            {{ form.employment_status }}
+                            {% if form.employment_status.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.employment_status.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.occupation.id_for_label }}" class="form-label fw-semibold">Occupation <span class="text-danger">*</span></label>
+                            {{ form.occupation }}
+                            {% if form.occupation.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.occupation.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.education.id_for_label }}" class="form-label fw-semibold">Education Level <span class="text-danger">*</span></label>
+                            {{ form.education }}
+                            {% if form.education.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.education.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.household_size.id_for_label }}" class="form-label fw-semibold">Household Size <span class="text-danger">*</span></label>
+                            {{ form.household_size }}
+                            {% if form.household_size.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.household_size.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">Number of people in your household</small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.monthly_income_sgd.id_for_label }}" class="form-label fw-semibold">Monthly Income (SGD) <span class="text-danger">*</span></label>
+                            {{ form.monthly_income_sgd }}
+                            {% if form.monthly_income_sgd.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.monthly_income_sgd.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">Your information is kept private</small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-check mt-4 pt-2">
+                                {{ form.has_children }}
+                                <label class="form-check-label fw-semibold" for="{{ form.has_children.id_for_label }}">
+                                    I have children
+                                </label>
+                            </div>
+                            {% if form.has_children.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.has_children.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger mt-3" role="alert">
+                            {{ form.non_field_errors.0 }}
+                        </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-between mt-4 pt-3 border-top">
+                        <a href="{% url 'ecommercemodule:home' %}" class="btn btn-outline-secondary">Skip for now</a>
+                        <button type="submit" class="btn btn-primary px-5">Complete Profile</button>
+                    </div>
+
+                    <p class="text-muted small text-center mt-3 mb-0">
+                        <i class="bi bi-shield-check"></i> Your information is secure and used only to improve your shopping experience.
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

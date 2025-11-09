@@ -1,0 +1,27 @@
+{% extends "ecommercemodule/base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<h3>Your Profile</h3>
+<table class="table table-striped">
+    <tr><th>Username</th><td>{{ profile.user.username }}</td></tr>
+    <tr><th>Email</th><td>{{ profile.user.email }}</td></tr>
+    <tr><th>Age</th><td>{{ profile.age|default:"—" }}</td></tr>
+    <tr><th>Gender</th><td>{{ profile.gender|default:"—" }}</td></tr>
+    <tr><th>Employment Status</th><td>{{ profile.employment_status|default:"—" }}</td></tr>
+    <tr><th>Occupation</th><td>{{ profile.occupation|default:"—" }}</td></tr>
+    <tr><th>Education</th><td>{{ profile.education|default:"—" }}</td></tr>
+    <tr><th>Household Size</th><td>{{ profile.household_size|default:"—" }}</td></tr>
+    <tr><th>Has Children</th><td>{{ profile.has_children|yesno:"Yes,No" }}</td></tr>
+    <tr><th>Monthly Income (SGD)</th><td>{{ profile.monthly_income_sgd|default:"—" }}</td></tr>
+    <tr><th>Preferred Category</th><td>{{ profile.preferred_category|default:"—" }}</td></tr>
+</table>
+<div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'store:profile_edit' %}">Edit Profile</a>
+    <form action="{% url 'store:deactivate_account' %}" method="post" onsubmit="return confirm('Deactivate account? This will log you out.');">
+        {% csrf_token %}
+        <button class="btn btn-outline-danger">Deactivate Account</button>
+    </form>
+</div>
+<hr>
+<a href="{% url 'store:order_history' %}">View past orders</a>
+{% endblock %}

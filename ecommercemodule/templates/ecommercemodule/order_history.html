@@ -1,0 +1,26 @@
+{% extends "ecommercemodule/base.html" %}
+{% block title %}Order History{% endblock %}
+{% block content %}
+<h3>Past Orders</h3>
+{% for order in orders %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between">
+        <div>Order #{{ order.pk }} · {{ order.created_at|date:"SHORT_DATETIME_FORMAT" }}</div>
+        <span class="badge bg-secondary">{{ order.status }}</span>
+    </div>
+    <div class="card-body">
+        <ul class="list-group list-group-flush">
+            {% for item in order.items.all %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ item.product.name }} (×{{ item.quantity }})</span>
+                    <span>${{ item.line_total }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+        <div class="text-end mt-2 fw-bold">Total: ${{ order.total_amount }}</div>
+    </div>
+</div>
+{% empty %}
+<p>You have not placed any orders yet.</p>
+{% endfor %}
+{% endblock %}

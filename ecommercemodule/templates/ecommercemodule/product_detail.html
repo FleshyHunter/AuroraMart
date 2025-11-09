@@ -1,0 +1,140 @@
+{% extends "ecommercemodule/base.html" %}
+{% load static %}
+{% block title %}{{ product.name }} | AuroraMart{% endblock %}
+{% block content %}
+<div class="row g-5 align-items-start">
+    <div class="col-lg-6">
+        <div class="bg-white rounded-4 shadow-sm p-3">
+            <div class="ratio ratio-4x3 rounded-3 overflow-hidden bg-body-tertiary">
+                <img src="{% static 'storefront/img/product-placeholder.png' %}" class="w-100 h-100 object-fit-cover" alt="{{ product.name }}">
+            </div>
+        </div>
+        <div class="d-flex flex-column flex-sm-row gap-3 mt-4">
+            <div class="flex-fill p-3 rounded-3 bg-white shadow-sm">
+                <p class="text-muted small mb-1">Ships in</p>
+                <p class="mb-0 fw-semibold">1-2 business days</p>
+            </div>
+            <div class="flex-fill p-3 rounded-3 bg-white shadow-sm">
+                <p class="text-muted small mb-1">Return policy</p>
+                <p class="mb-0 fw-semibold">30-day hassle free</p>
+            </div>
+            <div class="flex-fill p-3 rounded-3 bg-white shadow-sm">
+                <p class="text-muted small mb-1">Payment</p>
+                <p class="mb-0 fw-semibold">Secure checkout</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <p class="text-muted small mb-1">SKU: {{ product.sku }}</p>
+                <h1 class="h3 mb-2">{{ product.name }}</h1>
+                <p class="text-muted mb-0">{{ product.category.name }}{% if product.subcategory %} • {{ product.subcategory.name }}{% endif %}</p>
+            </div>
+            <div class="text-end">
+                {% if product.rating %}
+                <div class="badge text-bg-warning text-dark mb-2">
+                    ★ {{ product.rating|floatformat:1 }} / 5
+                </div>
+                {% else %}
+                <div class="badge text-bg-light text-muted mb-2">Not rated yet</div>
+                {% endif %}
+                <p class="small text-muted mb-0">Updated {{ product.updated_at|date:"M d, Y" }}</p>
+            </div>
+        </div>
+        <p class="lead text-muted mb-4">{{ product.description }}</p>
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+            <div class="display-6 text-primary mb-0">${{ product.unit_price|floatformat:2 }}</div>
+            {% if product.quantity_on_hand > 0 %}
+                <span class="badge text-bg-success">In stock</span>
+            {% else %}
+                <span class="badge text-bg-danger">Out of stock</span>
+            {% endif %}
+        </div>
+        <p class="mb-4">
+            {% if product.quantity_on_hand > 0 %}
+                <span class="fw-semibold">{{ product.quantity_on_hand }} units left.</span>
+                {% if is_low_stock %}
+                    <span class="text-danger fw-semibold">While stocks last!</span>
+                {% endif %}
+            {% else %}
+                <span class="text-muted">This item is currently unavailable.</span>
+            {% endif %}
+        </p>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h5 class="mb-3">Add to your cart</h5>
+                <form method="post" action="{% url 'store:add_to_cart' product.pk %}" class="row g-3 align-items-end">
+                    {% csrf_token %}
+                    <div class="col-sm-6">
+                        <label class="form-label text-muted small">Quantity</label>
+                        {{ form.quantity }}
+                    </div>
+                    <div class="col-sm-6 d-grid">
+                        <input type="hidden" name="redirect_to" value="{{ request.get_full_path }}">
+                        <button class="btn btn-primary btn-lg" type="submit" {% if product.quantity_on_hand == 0 %}disabled{% endif %}>
+                            {% if product.quantity_on_hand == 0 %}Out of stock{% else %}Add to cart{% endif %}
+                        </button>
+                    </div>
+                </form>
+                <div class="d-flex flex-wrap gap-3 mt-3 small text-muted">
+                    <span>✓ Free returns within 30 days</span>
+                    <span>✓ Secure payments</span>
+                    <span>✓ Trusted AuroraMart seller</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<section class="section-spacing mt-5 pt-4 border-top">
+    {% if fbt_products %}
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0">Frequently bought together</h4>
+    </div>
+    <div class="row g-3 mb-4">
+        {% for rec in fbt_products %}
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 shadow-sm hover-card">
+                <img src="{% static 'storefront/img/product-placeholder.png' %}" class="card-img-top object-fit-cover" style="height: 180px;" alt="{{ rec.name }}">
+                <div class="card-body d-flex flex-column">
+                    <h6 class="fw-semibold">{{ rec.name }}</h6>
+                    <p class="text-muted mb-3">${{ rec.unit_price|floatformat:2 }}</p>
+                    <div class="mt-auto d-grid gap-2">
+                        <a class="btn btn-outline-primary btn-sm" href="{% url 'store:product_detail' rec.pk %}">View</a>
+                        <form method="post" action="{% url 'store:add_to_cart' rec.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="quantity" value="1">
+                            <input type="hidden" name="redirect_to" value="{{ request.get_full_path }}">
+                            <button class="btn btn-primary btn-sm" type="submit" {% if rec.quantity_on_hand == 0 %}disabled{% endif %}>Add</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0">You may also like</h4>
+        <a class="btn btn-link btn-sm text-decoration-none" href="{% url 'store:category_list' %}">Browse more</a>
+    </div>
+    <div class="row g-3">
+        {% for suggestion in suggested_products %}
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 shadow-sm hover-card">
+                <img src="{% static 'storefront/img/product-placeholder.png' %}" class="card-img-top object-fit-cover" style="height: 180px;" alt="{{ suggestion.name }}">
+                <div class="card-body d-flex flex-column">
+                    <h6 class="fw-semibold">{{ suggestion.name }}</h6>
+                    <p class="text-muted mb-3">${{ suggestion.unit_price|floatformat:2 }}</p>
+                    <a class="btn btn-outline-primary btn-sm mt-auto" href="{% url 'store:product_detail' suggestion.pk %}">View</a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-muted mb-0">No suggestions available.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

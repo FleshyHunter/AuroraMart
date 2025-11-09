@@ -1,0 +1,177 @@
+{% extends "ecommercemodule/base.html" %}
+{% load static %}
+{% block title %}Home | AuroraMart{% endblock %}
+{% block content %}
+<div class="card border-0 shadow-sm rounded-4 p-4 p-lg-5 mb-5 bg-white hero-card">
+    <div class="row align-items-center gy-4">
+        <div class="col-lg-7">
+            <p class="text-uppercase text-primary fw-semibold small mb-2">Fresh finds every day</p>
+            <h1 class="display-5 fw-semibold mb-3">Welcome to AuroraMart</h1>
+            <p class="lead text-muted mb-4">Discover curated tech, lifestyle, and wellness essentials shipped at light speed.</p>
+            <form action="{% url 'store:product_search' %}" method="get" class="row g-2">
+                <div class="col-12 col-md">
+                    <input type="search" name="q" class="form-control form-control-lg" placeholder="Search for gadgets, apparel, and more" aria-label="Search AuroraMart">
+                </div>
+                <div class="col-12 col-md-auto d-grid">
+                    <button class="btn btn-primary btn-lg" type="submit">Search</button>
+                </div>
+            </form>
+        </div>
+        <div class="col-lg-5">
+            <div class="p-4 rounded-4 bg-body-tertiary h-100">
+                <h5 class="fw-semibold mb-3">Why shoppers love us</h5>
+                <ul class="list-unstyled mb-0 small text-muted">
+                    <li class="d-flex align-items-start gap-2 mb-2">
+                        <span class="text-primary">•</span>
+                        Curated collections updated weekly
+                    </li>
+                    <li class="d-flex align-items-start gap-2 mb-2">
+                        <span class="text-primary">•</span>
+                        Secure checkout &amp; tracked delivery
+                    </li>
+                    <li class="d-flex align-items-start gap-2">
+                        <span class="text-primary">•</span>
+                        Personalized picks just for you
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if preferred_products %}
+<section class="section-spacing">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+            <p class="text-uppercase small text-primary fw-semibold mb-1">Made for you</p>
+            <h2 class="section-heading mb-0">Recommended from {{ preferred_category.name }}</h2>
+        </div>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'store:category_products' preferred_category.slug %}">See category</a>
+    </div>
+    <div class="row g-3">
+        {% for product in preferred_products %}
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card h-100 shadow-sm hover-card">
+                <img src="{% static 'storefront/img/product-placeholder.png' %}" class="card-img-top object-fit-cover" style="height: 180px;" alt="{{ product.name }}">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <p class="h6 text-primary mb-1">${{ product.unit_price|floatformat:2 }}</p>
+                    <p class="text-muted small mb-3">Rating: {{ product.rating|default:"Not rated" }}</p>
+                    <div class="mt-auto d-flex gap-2">
+                        <a class="btn btn-outline-primary btn-sm flex-fill" href="{% url 'store:product_detail' product.pk %}">View</a>
+                        <form method="post" action="{% url 'store:add_to_cart' product.pk %}" class="flex-fill">
+                            {% csrf_token %}
+                            <input type="hidden" name="quantity" value="1">
+                            <input type="hidden" name="redirect_to" value="{{ request.get_full_path }}">
+                            <button class="btn btn-primary btn-sm w-100" type="submit" {% if product.quantity_on_hand == 0 %}disabled{% endif %}>Add</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="section-spacing">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+        <div>
+            <p class="text-uppercase text-primary fw-semibold small mb-1">Trending now</p>
+            <h2 class="section-heading mb-0">Featured Products</h2>
+        </div>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'store:category_list' %}">Browse all categories</a>
+    </div>
+    <div class="row g-3">
+        {% for product in featured_products %}
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+            <div class="card h-100 shadow-sm hover-card d-flex flex-column">
+                <img src="{% static 'storefront/img/product-placeholder.png' %}" class="card-img-top object-fit-cover" style="height: 200px;" alt="{{ product.name }}">
+                <div class="card-body d-flex flex-column">
+                    <div class="mb-3">
+                        <h5 class="card-title mb-1">{{ product.name }}</h5>
+                        <p class="fw-semibold text-primary mb-0">${{ product.unit_price|floatformat:2 }}</p>
+                        {% if product.rating %}
+                        <p class="text-muted small mb-0">★ {{ product.rating|floatformat:1 }} / 5</p>
+                        {% endif %}
+                    </div>
+                    <div class="mt-auto d-grid gap-2">
+                        <a class="btn btn-outline-primary" href="{% url 'store:product_detail' product.pk %}">View Details</a>
+                        <form method="post" action="{% url 'store:add_to_cart' product.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="quantity" value="1">
+                            <input type="hidden" name="redirect_to" value="{{ request.get_full_path }}">
+                            <button class="btn btn-primary" type="submit" {% if product.quantity_on_hand == 0 %}disabled{% endif %}>Add to Cart</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-muted mb-0">No featured products available right now.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% if fast_selling_products %}
+<section class="section-spacing">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+        <div>
+            <p class="text-uppercase text-danger fw-semibold small mb-1">Hurry up</p>
+            <h2 class="section-heading mb-0">Fast Selling Products</h2>
+        </div>
+    </div>
+    <div class="row g-3">
+        {% for product in fast_selling_products %}
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+            <div class="card h-100 shadow-sm hover-card">
+                <img src="{% static 'storefront/img/product-placeholder.png' %}" class="card-img-top object-fit-cover" style="height: 200px;" alt="{{ product.name }}">
+                <div class="card-body d-flex flex-column">
+                    <span class="badge text-bg-danger align-self-start mb-2">Only {{ product.quantity_on_hand }} left</span>
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <p class="fw-semibold text-primary mb-1">${{ product.unit_price|floatformat:2 }}</p>
+                    <p class="text-muted small mb-3">While stocks last</p>
+                    <div class="mt-auto d-grid gap-2">
+                        <a class="btn btn-outline-primary" href="{% url 'store:product_detail' product.pk %}">View Details</a>
+                        <form method="post" action="{% url 'store:add_to_cart' product.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="quantity" value="1">
+                            <input type="hidden" name="redirect_to" value="{{ request.get_full_path }}">
+                            <button class="btn btn-primary" type="submit" {% if product.quantity_on_hand == 0 %}disabled{% endif %}>Add to Cart</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="section-spacing">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+        <div>
+            <p class="text-uppercase text-primary fw-semibold small mb-1">Shop by interest</p>
+            <h2 class="section-heading mb-0">Browse by Category</h2>
+        </div>
+    </div>
+    <div class="row g-3">
+        {% for category in categories %}
+        <div class="col-6 col-md-4 col-lg-3">
+            <a href="{% url 'store:category_products' category.slug %}" class="text-decoration-none text-dark">
+                <div class="card h-100 border-0 shadow-sm hover-card">
+                    <div class="card-body">
+                        <h5 class="mb-2">{{ category.name }}</h5>
+                        <span class="text-primary small fw-semibold">Explore &raquo;</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% empty %}
+        <p class="text-muted">No categories yet.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
