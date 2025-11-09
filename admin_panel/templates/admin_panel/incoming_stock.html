@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Incoming Stock</h1>
+
+<!-- Filter by Status -->
+<div style="margin-bottom:15px;">
+    <form method="get" style="display:flex; gap:10px; align-items:center;">
+        <label for="status_filter" style="font-weight:bold;">Filter by Status:</label>
+        <select name="status" id="status_filter">
+            <option value="">All</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="confirmed" {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+            <option value="received" {% if status_filter == 'received' %}selected{% endif %}>Received</option>
+        </select>
+        <button type="submit" style="padding:6px 12px; background-color:#007BFF; color:white; border:none; border-radius:4px; cursor:pointer;">
+            Apply Filter
+        </button>
+        <a href="{% url 'admin_panel:incoming_stock' %}" style="padding:6px 12px; background-color:#6c757d; color:white; text-decoration:none; border-radius:4px; cursor:pointer;">
+            Clear Filter
+        </a>
+    </form>
+</div>
+
+<form method="post" style="margin-bottom:15px;">
+    {% csrf_token %}
+    <table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background-color:#f2f2f2;">
+                <th>Shipment ID</th>
+                <th>Product Name</th>
+                <th>SKU</th>
+                <th>Quantity</th>
+                <th>Status</th>
+                <th>Order Date</th>
+                <th>Confirmation Date</th>
+                <th style="text-align:center;">Received</th>
+                <th style="text-align:center;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for shipment in page_obj %}
+            <tr>
+                <td>{{ shipment.shipment_id }}</td>
+                <td>{{ shipment.product.name }}</td>
+                <td>{{ shipment.product.sku }}</td>
+                <td>{{ shipment.quantity }}</td>
+                <td>
+                    {% if shipment.status == 'pending' %}
+                        <span style="padding:4px 8px; border-radius:4px; font-weight:bold; background-color:#fff3cd; color:#856404;">
+                            Pending
+                        </span>
+                    {% elif shipment.status == 'confirmed' %}
+                        <span style="padding:4px 8px; border-radius:4px; font-weight:bold; background-color:#d1ecf1; color:#0c5460;">
+                            Confirmed
+                        </span>
+                    {% elif shipment.status == 'received' %}
+                        <span style="padding:4px 8px; border-radius:4px; font-weight:bold; background-color:#d4edda; color:#155724;">
+                            Arrived
+                        </span>
+                    {% endif %}
+                </td>
+                <td>{{ shipment.order_date|date:"d-m-Y H:i" }}</td>
+                <td>
+                    {% if shipment.confirmation_date %}
+                        {{ shipment.confirmation_date|date:"d-m-Y H:i" }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td style="text-align:center;">
+                    {% if shipment.status == 'pending' %}
+                        <!-- Pending items cannot be checked until confirmed -->
+                        <input type="checkbox" disabled style="width:20px; height:20px; cursor:not-allowed;" title="Mark as confirmed first">
+                    {% elif shipment.status == 'confirmed' %}
+                        <!-- Confirmed items can be checked -->
+                        <input type="checkbox" name="received_shipments" value="{{ shipment.shipment_id }}" style="width:20px; height:20px; cursor:pointer;">
+                    {% elif shipment.status == 'received' %}
+                        <!-- Received items are checked and can be unchecked -->
+                        <input type="checkbox" name="received_shipments" value="{{ shipment.shipment_id }}" checked style="width:20px; height:20px; cursor:pointer;">
+                    {% endif %}
+                </td>
+                <td style="text-align:center;">
+                    {% if shipment.status == 'received' %}
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="move_to_history">
+                            <input type="hidden" name="move_to_history_shipments" value="{{ shipment.shipment_id }}">
+                            <button type="submit" style="padding:6px 12px; background-color:#fd7e14; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px;">
+                                Move to History
+                            </button>
+                        </form>
+                    {% else %}
+                        <span style="color:#ccc;">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" style="text-align:center;">No incoming stock items found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top:15px;">
+        <button type="submit" style="padding:8px 16px; background-color:#28a745; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px;">
+            Mark as Arrived
+        </button>
+    </div>
+</form>
+<div style="margin-top:15px;">
+    {% if page_obj.has_previous %}
+        <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}">First</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Previous</a>
+    {% endif %}
+
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}">Last</a>
+    {% endif %}
+</div>
+
+<div style="margin-top:20px;">
+    <a href="{% url 'admin_panel:order_list' %}" style="padding:8px 16px; background-color:#6c757d; color:white; text-decoration:none; border-radius:4px; cursor:pointer;">
+        Back to Orders
+    </a>
+</div>
+
+{% endblock %}

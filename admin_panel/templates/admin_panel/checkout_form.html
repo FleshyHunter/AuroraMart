@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Checkout Form</h1>
+
+<div style="margin-bottom:20px;">
+    <p style="font-size:16px; font-weight:bold;">Please review the items below before confirming shipment:</p>
+</div>
+
+<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse;">
+    <thead>
+        <tr style="background-color:#f2f2f2;">
+            <th>Product Name</th>
+            <th>SKU</th>
+            <th>Quantity</th>
+            <th>Unit Price (SGD)</th>
+            <th>Total Price (SGD)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in checkout_products %}
+        <tr>
+            <td>{{ item.name }}</td>
+            <td>{{ item.sku }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>${{ item.unit_price }}</td>
+            <td>${{ item.total_price|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background-color:#f2f2f2; font-weight:bold;">
+            <td colspan="4" style="text-align:right;">Total Amount:</td>
+            <td>${{ total_amount|floatformat:2 }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<div style="margin-top:30px; padding:20px; background-color:#fff3cd; border-left:4px solid #ffc107; border-radius:4px;">
+    <p style="margin:0; font-weight:bold; color:#856404;">⚠️ Confirm Shipment</p>
+    <p style="margin:5px 0 0 0; color:#856404;">Please confirm that you want to proceed with shipping these items. Once confirmed, they will be added to the Incoming Stock list.</p>
+</div>
+
+<form method="post" style="margin-top:20px;">
+    {% csrf_token %}
+    <button type="submit" name="action" value="confirm_shipment" style="padding:10px 20px; background-color:#28a745; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px; margin-right:10px;">
+        ✓ Confirm Shipment
+    </button>
+    <button type="submit" name="action" value="cancel" style="padding:10px 20px; background-color:#dc3545; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px;">
+        ✗ Cancel
+    </button>
+</form>
+
+{% endblock %}

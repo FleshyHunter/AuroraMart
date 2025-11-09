@@ -37,11 +37,11 @@ class Command(BaseCommand):
                 try:
                     df = pd.read_csv(csv_path, encoding=enc)
                     break
-                except Exception as e:  # try next encoding
+                except Exception as e:  # Try next encoding
                     last_err = e
                     df = None
             if df is None:
-                raise last_err  # type: ignore[misc]
+                raise last_err  # Raise the last error if all encodings fail
             records = df.to_dict(orient="records")
             created, updated, skipped = import_products_from_records(
                 records, update_existing=options.get("update", False)

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Inventory History</h1>
+
+<!-- Search and Filter -->
+<div style="margin-bottom:15px;">
+    <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <!-- Search by Product Name or SKU -->
+        <input type="text" name="search" placeholder="Search by product name or SKU..." value="{{ search_query }}" style="padding:6px 12px; border:1px solid #ccc; border-radius:4px; width:250px;">
+        
+        <!-- Filter by Movement Type -->
+        <select name="movement_type" style="padding:6px 12px; border:1px solid #ccc; border-radius:4px;">
+            <option value="">All Movements</option>
+            <option value="incoming" {% if movement_filter == 'incoming' %}selected{% endif %}>Incoming</option>
+            <option value="outgoing" {% if movement_filter == 'outgoing' %}selected{% endif %}>Outgoing</option>
+        </select>
+        
+        <!-- Apply Button -->
+        <button type="submit" style="padding:6px 12px; background-color:#007BFF; color:white; border:none; border-radius:4px; cursor:pointer;">
+            Apply Filter
+        </button>
+        
+        <!-- Clear Filters -->
+        <a href="{% url 'admin_panel:inventory_history' %}" style="padding:6px 12px; background-color:#6c757d; color:white; text-decoration:none; border-radius:4px; cursor:pointer;">
+            Clear Filter
+        </a>
+    </form>
+</div>
+
+<!-- History Table -->
+<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:15px;">
+    <thead>
+        <tr style="background-color:#f2f2f2;">
+            <th>History ID</th>
+            <th>Product Name</th>
+            <th>SKU</th>
+            <th>Quantity</th>
+            <th>Reference ID</th>
+            <th>Movement Date</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in page_obj %}
+        <tr>
+            <td>{{ record.history_id }}</td>
+            <td>{{ record.product.name }}</td>
+            <td>{{ record.product.sku }}</td>
+            <td style="text-align:center;">{{ record.quantity }}</td>
+            <td style="text-align:center;">
+                {% if record.reference_id %}
+                    {{ record.reference_id }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>{{ record.movement_date|date:"d-m-Y H:i" }}</td>
+            <td>
+                {% if record.notes %}
+                    {{ record.notes }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" style="text-align:center; padding:20px;">No inventory history records found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Pagination -->
+<div style="margin-top:15px;">
+    {% if page_obj.has_previous %}
+        <a href="?page=1{% if movement_filter %}&movement_type={{ movement_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">First</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if movement_filter %}&movement_type={{ movement_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+    {% endif %}
+
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if movement_filter %}&movement_type={{ movement_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if movement_filter %}&movement_type={{ movement_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Last</a>
+    {% endif %}
+</div>
+
+<!-- Summary Stats -->
+<div style="margin-top:30px; padding:15px; background-color:#f8f9fa; border-radius:4px;">
+    <h3>Summary</h3>
+    <p><strong>Total Records on Page:</strong> {{ page_obj|length }}</p>
+    <p><strong>Total Records (All Pages):</strong> {{ page_obj.paginator.count }}</p>
+</div>
+
+<!-- Back to Incoming Stock -->
+<div style="margin-top:20px;">
+    <a href="{% url 'admin_panel:incoming_stock' %}" style="padding:8px 16px; background-color:#6c757d; color:white; text-decoration:none; border-radius:4px; cursor:pointer;">
+        Back to Incoming Stock
+    </a>
+</div>
+
+{% endblock %}

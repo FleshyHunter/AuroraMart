@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Inventory</h1>
+
+<!-- Search Form -->
+<form method="get" style="margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+    <input type="text" name="q" placeholder="Search by name" value="{{ search_query }}" style="padding:5px; border:1px solid #ccc; border-radius:4px;">
+    <input type="text" name="sku" placeholder="Search by SKU" value="{{ sku_query }}" style="padding:5px; border:1px solid #ccc; border-radius:4px;">
+
+    <button type="submit" style="padding:6px 12px; background-color:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; min-width:80px;">
+        Search
+    </button>
+
+    <a href="{% url 'admin_panel:inventory_list' %}" 
+       style="padding:6px 12px; background-color:#4CAF50; color:white; text-decoration:none; border:none; border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; min-width:80px; text-align:center;">
+        Reset
+    </a>
+</form>
+
+<script>
+// Small script: pressing Enter in the number input will submit the form
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[method="post"]');
+    const inputs = document.querySelectorAll('input[type="number"][name^="order_qty_"]');
+    inputs.forEach(input => {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (form) form.submit();
+            }
+        });
+    });
+});
+</script>
+
+<form method="post" style="margin-bottom:15px;">
+    {% csrf_token %}
+    <table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background-color:#f2f2f2;">
+                <th>Name</th>
+                <th>SKU</th>
+                <th>Quantity On Hand</th>
+                <th>Reorder Quantity</th>
+                <th>Incoming Stock</th>
+                <th>Order Quantity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in page_obj %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.sku }}</td>
+                <td>{{ product.quantity_on_hand }}</td>
+                <td>{{ product.reorder_quantity }}</td>
+                <td>{{ product.incoming_stock_qty }}</td>
+                <td style="white-space:nowrap;">
+                    <!-- editable order quantity with spinner buttons -->
+                    <input type="number" name="order_qty_{{ product.id }}" value="{{ product.order_qty }}" min="0" style="width:80px; padding:5px; border:1px solid #ccc; border-radius:4px;">
+                    <!-- increment button -->
+                    <button type="submit" name="increment" value="{{ product.id }}" style="padding:5px 8px; background-color:#28a745; color:white; border:none; border-radius:4px; cursor:pointer;">+</button>
+                    <!-- decrement button -->
+                    <button type="submit" name="decrement" value="{{ product.id }}" style="padding:5px 8px; background-color:#dc3545; color:white; border:none; border-radius:4px; cursor:pointer;">−</button>
+                    <!-- removed Update button - Enter will submit the form -->
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align:center;">No products found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</form>
+
+<div style="margin-top:15px;">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+    {% endif %}
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">Next</a>
+    {% endif %}
+</div>
+{% endblock %}

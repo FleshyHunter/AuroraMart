@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Product{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; margin-top:60px;">
+    <div style="background:#fff; padding:40px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); width:60%; max-width:600px;">
+        <h2 style="text-align:center; color:#d9534f;">Confirm Delete</h2>
+        <p style="text-align:center; margin-top:20px;">
+            Are you sure you want to permanently delete the product
+            <strong>{{ product.name }}</strong> (SKU: {{ product.sku }})?
+        </p>
+
+        <form method="post" style="text-align:center; margin-top:30px;">
+            {% csrf_token %}
+            <button type="submit" style="background-color:#d9534f; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">
+                Yes, Delete
+            </button>
+            <a href="{% url 'admin_panel:product_list' %}"
+               style="margin-left:15px; background-color:#6c757d; color:white; padding:10px 20px; border-radius:5px; text-decoration:none;">
+                Cancel
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

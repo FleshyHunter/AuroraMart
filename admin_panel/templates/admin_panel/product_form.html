@@ -1,0 +1,43 @@
+{% extends "base_form.html" %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; margin-top:40px;">
+    <div style="width:80%; background-color:#f9f9f9; padding:30px 40px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+
+        <h2 style="text-align:center; margin-bottom:30px;">
+            {{ form.instance.pk|yesno:"Edit Product Form,Add Product Form" }}
+        </h2>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div style="display:grid; grid-template-columns: 200px 1fr; gap:15px 20px; align-items:center;">
+                {% for field in form %}
+                    {% if field.is_hidden %}
+                        {{ field }}
+                    {% else %}
+                        <label for="{{ field.id_for_label }}" style="font-weight:500; text-align:right; padding-right:10px;">
+                            {{ field.label }}{% if field.field.required %} *{% endif %}
+                        </label>
+                        <div style="display:flex; flex-direction:column;">
+                            {{ field }}
+                            {% if field.errors %}
+                                <span style="color:red; font-size:0.85em;">{{ field.errors|striptags }}</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div style="margin-top:30px; text-align:center; display:flex; gap:10px; justify-content:center;">
+                <button type="submit" style="padding:10px 25px; background-color:#007BFF; color:white; border:none; border-radius:5px; font-size:1em; cursor:pointer;">
+                    Save
+                </button>
+                <a href="{{ return_url }}" style="padding:10px 25px; background-color:#6c757d; color:white; text-decoration:none; border-radius:5px; font-size:1em; display:inline-block;">
+                    Back
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

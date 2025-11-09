@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Customer Detail</h2>
+
+<table border="1" cellpadding="8">
+  <tr><th>ID</th><td>{{ customer.id }}</td></tr>
+  <tr><th>Age</th><td>{{ customer.age }}</td></tr>
+  <tr><th>Gender</th><td>{{ customer.gender }}</td></tr>
+  <tr><th>Employment Status</th><td>{{ customer.employment_status }}</td></tr>
+  <tr><th>Occupation</th><td>{{ customer.occupation }}</td></tr>
+  <tr><th>Education</th><td>{{ customer.education }}</td></tr>
+  <tr><th>Household Size</th><td>{{ customer.household_size }}</td></tr>
+  <tr><th>Has Children</th><td>{{ customer.has_children }}</td></tr>
+  <tr><th>Monthly Income (SGD)</th><td>{{ customer.monthly_income_sgd }}</td></tr>
+  <tr><th>Preferred Category</th><td>{{ customer.preferred_category }}</td></tr>
+</table>
+
+<a href="{{ return_url }}" class="button">Back to Customers</a>
+<a href="{% url 'admin_panel:customer_edit' customer.id %}?return_url={{ return_url|urlencode }}" class="button">Edit Customer Details</a>
+{% endblock %}

@@ -11,14 +11,10 @@ from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils.text import slugify
 
-from ecommercemodule.models import (
-    Category,
-    Customer,
-    Order,
-    OrderItem,
-    Product,
-    SubCategory,
-)
+# Import shared models from auroramart app
+from auroramart.models import Category, Customer, Product, SubCategory
+# Import ecommerce-specific models from ecommercemodule
+from ecommercemodule.models import Order, OrderItem
 
 
 User = get_user_model()
@@ -83,16 +79,24 @@ def _parse_decimal(value: object, field: str, allow_blank: bool = False) -> Deci
     return result.quantize(Decimal("0.01"))
 
 
-def _parse_rating(value: object) -> Optional[float]:
+def _parse_rating(value: object) -> Optional[Decimal]:
+    """Parse rating ensuring exactly <=1 decimal place and return Decimal.
+
+    We avoid floating point round-off issues by converting directly to Decimal
+    and quantizing to one decimal place.
+    """
     if value is None or str(value).strip() == "":
         return None
+    raw = str(value).strip()
     try:
-        rating = float(str(value).strip())
-    except ValueError as exc:
+        dec = Decimal(raw)
+    except InvalidOperation as exc:
         raise CommandError(f"Invalid rating (0-5): {value!r}") from exc
-    if not 0 <= rating <= 5:
-        raise CommandError(f"Rating must be between 0 and 5 (value={rating})")
-    return rating
+    if not Decimal("0") <= dec <= Decimal("5"):
+        raise CommandError(f"Rating must be between 0 and 5 (value={dec})")
+    # Quantize to 1 decimal place.
+    dec = dec.quantize(Decimal("0.0"))
+    return dec
 
 
 def _get_category(name: str) -> Category:
@@ -122,20 +126,36 @@ def import_products_from_csv(csv_path: Path, update_existing: bool = False) -> T
         raise CommandError(f"Products CSV not found: {csv_path}")
 
     created = updated = skipped = 0
-    with csv_path.open(newline="", encoding="utf-8-sig") as handle:
-        csv_reader = DictReader(handle)
-        missing = [label for label in PRODUCT_HEADERS.values() if label not in (csv_reader.fieldnames or [])]
-        if missing:
-            fieldnames = csv_reader.fieldnames or []
-            looks_like_transactions = bool(fieldnames) and all(
-                isinstance(col, str) and col and (" " not in col) for col in fieldnames
-            )
-            hint = (
-                " It looks like you may have passed the transactions CSV. Use: `python manage.py import_transactions --csv <transactions.csv>`"
-                if looks_like_transactions
-                else ""
-            )
-            raise CommandError(f"Product CSV missing headers: {missing}.{hint}")
+    # Try multiple encodings to be resilient to Windows/Excel exports.
+    encodings = ["utf-8-sig", "utf-8", "cp1252", "latin1"]
+    last_err: Optional[Exception] = None
+    csv_reader: Optional[DictReader] = None
+    for enc in encodings:
+        try:
+            handle = csv_path.open(newline="", encoding=enc)
+            csv_reader = DictReader(handle)
+            # Force evaluation of headers to trigger early Unicode errors.
+            _ = csv_reader.fieldnames
+            break
+        except Exception as e:
+            last_err = e
+            csv_reader = None
+            continue
+    if csv_reader is None:
+        raise CommandError(f"Unable to read products CSV with tried encodings {encodings}: {last_err}")
+
+    missing = [label for label in PRODUCT_HEADERS.values() if label not in (csv_reader.fieldnames or [])]
+    if missing:
+        fieldnames = csv_reader.fieldnames or []
+        looks_like_transactions = bool(fieldnames) and all(
+            isinstance(col, str) and col and (" " not in col) for col in fieldnames
+        )
+        hint = (
+            " It looks like you may have passed the transactions CSV. Use: `python manage.py import_transactions --csv <transactions.csv>`"
+            if looks_like_transactions
+            else ""
+        )
+        raise CommandError(f"Product CSV missing headers: {missing}.{hint}")
 
         for line_number, row in enumerate(csv_reader, start=2):
             try:

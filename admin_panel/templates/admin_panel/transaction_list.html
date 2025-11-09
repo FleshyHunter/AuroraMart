@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Transactions</h2>
+<table border="1" cellpadding="8">
+    <tr>
+        <th>ID</th>
+        <th>Customer</th>
+        <th>Date</th>
+        <th>Total Amount</th>
+        <th>Details</th>
+    </tr>
+    {% for t in transactions %}
+    <tr>
+        <td>{{ t.transaction_id }}</td>
+        <td>{{ t.customer }}</td>
+        <td>{{ t.transaction_date }}</td>
+        <td>{{ t.total_amount }}</td>
+        <td>
+            <a href="{% url 'admin_panel:transaction_detail' t.pk %}">View Items</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

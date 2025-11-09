@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Transaction {{ transaction.transaction_id }} - {{ transaction.customer }}</h2>
+<p>Date: {{ transaction.transaction_date }}</p>
+<p>Total Amount: {{ transaction.total_amount }}</p>
+
+<h3>Items</h3>
+<table border="1" cellpadding="8">
+    <tr>
+        <th>Product</th>
+        <th>Quantity</th>
+        <th>Price</th>
+        <th>Subtotal</th>
+    </tr>
+    {% for item in items %}
+    <tr>
+        <td>{{ item.product }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>{{ item.price }}</td>
+        <td>{{ item.quantity|multiply:item.price }}</td>  <!-- Or calculate in template logic -->
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

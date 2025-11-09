@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Products</h1>
+
+<!-- Add Product Button -->
+<a href="{% url 'admin_panel:product_add' %}" class="button"
+    style="background-color:#28a745; color:white; padding:8px 12px; border-radius:4px; text-decoration:none;">Add
+    Product</a>
+
+<!-- Filters and Search -->
+<form method="get" style="margin-top:15px; margin-bottom:15px;">
+    <!-- Search Section -->
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <input type="text" name="q" placeholder="Search product..." value="{{ search_query }}" style="width: 200px;">
+        <input type="text" name="sku" placeholder="Search SKU..." value="{{ sku_query }}" style="width: 200px;">
+    </div>
+
+    <!-- Filter and Sort Section -->
+    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+        <!-- Filter By -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <strong>Filter:</strong>
+            <select name="category">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if cat == category_filter %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="subcategory">
+                <option value="">All Subcategories</option>
+                {% for sub in subcategories %}
+                <option value="{{ sub }}" {% if sub == subcategory_filter %}selected{% endif %}>{{ sub }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="active">
+                <option value="">Status</option>
+                <option value="active" {% if active_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+        </div>
+
+        <span style="color: #ccc;">|</span>
+
+        <!-- Sort By -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <strong>Sort:</strong>
+            <select name="price_order">
+                <option value="">Price</option>
+                <option value="asc" {% if price_order == 'asc' %}selected{% endif %}>Low to High</option>
+                <option value="desc" {% if price_order == 'desc' %}selected{% endif %}>High to Low</option>
+            </select>
+
+            <select name="rating_order">
+                <option value="">Rating</option>
+                <option value="asc" {% if rating_order == 'asc' %}selected{% endif %}>Low to High</option>
+                <option value="desc" {% if rating_order == 'desc' %}selected{% endif %}>High to Low</option>
+            </select>
+
+            <select name="stock_order">
+                <option value="">Stock</option>
+                <option value="asc" {% if stock_order == 'asc' %}selected{% endif %}>Low to High</option>
+                <option value="desc" {% if stock_order == 'desc' %}selected{% endif %}>High to Low</option>
+            </select>
+        </div>
+
+        <button type="submit" style="padding:6px 20px; background-color:#007BFF; color:white; border:none; border-radius:4px; cursor:pointer;">Apply</button>
+    </div>
+</form>
+
+<!-- Product Table -->
+<table border="1" cellpadding="8">
+    <tr>
+        <th>Name</th>
+        <th>SKU</th>
+        <th>Price</th>
+        <th>Category</th>
+        <th>Subcategory</th>
+        <th>Stock</th>
+        <th>Rating</th>
+        <th>Active</th>
+        <th>Actions</th>
+    </tr>
+    {% for p in page_obj %}
+    <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.sku }}</td>
+        <td>{{ p.unit_price }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.subcategory }}</td>
+        <td>{{ p.quantity_on_hand }}</td>
+        <td>{{ p.rating }}</td>
+        <td>{{ p.is_active }}</td>
+        <td>
+            <a href="{% url 'admin_panel:product_edit' p.pk %}?return_url={{ request.get_full_path|urlencode }}">Edit</a>
+            <a href="{% url 'admin_panel:product_delete' p.pk %}">Delete</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<!-- Pagination Links -->
+<div style="margin-top:15px;">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+    {% endif %}
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">Next</a>
+    {% endif %}
+</div>
+
+{% endblock %}

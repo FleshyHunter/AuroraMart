@@ -1,0 +1,51 @@
+{% if messages %}
+<div style="position: fixed; top: 80px; right: 20px; z-index: 9999; width: 350px;">
+    {% for message in messages %}
+    <div class="notification notification-{{ message.tags }}" 
+         style="margin-bottom: 10px; 
+                padding: 15px 20px; 
+                border-radius: 5px; 
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                animation: slideIn 0.3s ease-out;">
+        <span style="flex: 1;">
+            {% if message.tags == 'success' %}
+                ✓
+            {% elif message.tags == 'error' %}
+                ✗
+            {% elif message.tags == 'warning' %}
+                ⚠
+            {% elif message.tags == 'info' %}
+                ℹ
+            {% endif %}
+            {{ message }}
+        </span>
+        <button onclick="this.parentElement.remove()" 
+                style="background: none; 
+                       border: none; 
+                       color: inherit; 
+                       font-size: 20px; 
+                       cursor: pointer; 
+                       padding: 0; 
+                       margin-left: 10px;">×</button>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+    // Auto-dismiss notifications after 5 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+        const notifications = document.querySelectorAll('.notification');
+        notifications.forEach(function(notification) {
+            setTimeout(function() {
+                notification.style.opacity = '0';
+                setTimeout(function() {
+                    notification.remove();
+                }, 300);
+            }, 5000);
+        });
+    });
+</script>
+{% endif %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Order List</h1>
+
+<form method="post" style="margin-bottom:15px;">
+    {% csrf_token %}
+    <table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background-color:#f2f2f2;">
+                <th>Name</th>
+                <th>SKU</th>
+                <th>Ordered Quantity</th>
+                <th style="text-align:center;">Checkout</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.sku }}</td>
+                <td>{{ product.ordered_qty }}</td>
+                <td style="text-align:center;">
+                    <input type="checkbox" name="checkout_products" value="{{ product.id }}" style="width:20px; height:20px; cursor:pointer;">
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="text-align:center;">No items in the order list.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top:15px;">
+        <button type="submit" name="action" value="checkout" style="padding:8px 16px; background-color:#28a745; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px;">
+            Checkout Selected Items
+        </button>
+    </div>
+</form>
+
+<a href="{% url 'admin_panel:inventory_list' %}">Back to Inventory</a>
+{% endblock %}

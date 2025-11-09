@@ -16,8 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.shortcuts import redirect
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("store/", include(("ecommercemodule.urls", "store"), namespace="store")),
+    path("", lambda request: redirect('ecommercemodule:home'), name="home"),  # Root redirects to ecommerce home
+    path("store/", include("ecommercemodule.urls", "store")),  # Customer-facing store
+    path("admin_panel/", include("admin_panel.urls")),  # Admin panel for inventory/management
 ]

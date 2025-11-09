@@ -1,6 +1,7 @@
 from django.db.models import Sum
 
-from .models import Cart, Customer
+from auroramart.models import Customer
+from .models import Cart
 
 
 def cart_item_count(request):

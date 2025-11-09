@@ -7,13 +7,33 @@ Place model files under `auroramart/ml/models/` or override paths via settings:
 """
 from __future__ import annotations
 
-from .classifier import predict_preferred_category
-from .recommender import (
-    get_recommendations,
-    frequently_bought_together,
-    cart_add_on_recommendations
-)
-from .integration import predict_customer_preferred_category
+# Graceful import of ML helpers: if optional deps (joblib, sklearn) missing,
+# provide lightweight stubs so the rest of the site still works.
+try:  # pragma: no cover - optional path
+    from .classifier import predict_preferred_category
+except Exception:  # ModuleNotFoundError, ImportError, etc.
+    def predict_preferred_category(*args, **kwargs):  # type: ignore[override]
+        return None
+
+try:  # pragma: no cover
+    from .recommender import (
+        get_recommendations,
+        frequently_bought_together,
+        cart_add_on_recommendations
+    )
+except Exception:
+    def get_recommendations(*args, **kwargs):  # type: ignore[override]
+        return []
+    def frequently_bought_together(*args, **kwargs):  # type: ignore[override]
+        return []
+    def cart_add_on_recommendations(*args, **kwargs):  # type: ignore[override]
+        return []
+
+try:  # pragma: no cover
+    from .integration import predict_customer_preferred_category
+except Exception:
+    def predict_customer_preferred_category(*args, **kwargs):  # type: ignore[override]
+        return None
 
 __all__ = [
     'predict_preferred_category',

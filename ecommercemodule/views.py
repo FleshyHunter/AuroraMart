@@ -26,16 +26,8 @@ from .forms import (
     RegistrationForm,
     StorePasswordResetForm,
 )
-from .models import (
-    Cart,
-    CartItem,
-    Category,
-    Customer,
-    Order,
-    OrderItem,
-    Product,
-    SubCategory,
-)
+from auroramart.models import Category, Customer, Product, SubCategory
+from .models import Cart, CartItem, Order, OrderItem
 from auroramart.ml import (
     predict_customer_preferred_category as ml_predict_preferred_category,
     frequently_bought_together as ml_fbt,

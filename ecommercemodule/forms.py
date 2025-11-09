@@ -6,7 +6,7 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 
-from .models import Customer
+from auroramart.models import Customer
 
 User = get_user_model()
 
