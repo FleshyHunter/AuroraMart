@@ -1,21 +1,175 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Customer Detail</h2>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 
-<table border="1" cellpadding="8">
-  <tr><th>ID</th><td>{{ customer.id }}</td></tr>
-  <tr><th>Age</th><td>{{ customer.age }}</td></tr>
-  <tr><th>Gender</th><td>{{ customer.gender }}</td></tr>
-  <tr><th>Employment Status</th><td>{{ customer.employment_status }}</td></tr>
-  <tr><th>Occupation</th><td>{{ customer.occupation }}</td></tr>
-  <tr><th>Education</th><td>{{ customer.education }}</td></tr>
-  <tr><th>Household Size</th><td>{{ customer.household_size }}</td></tr>
-  <tr><th>Has Children</th><td>{{ customer.has_children }}</td></tr>
-  <tr><th>Monthly Income (SGD)</th><td>{{ customer.monthly_income_sgd }}</td></tr>
-  <tr><th>Preferred Category</th><td>{{ customer.preferred_category }}</td></tr>
-</table>
+<div class="container-fluid px-4 py-4">
+    <!-- Header with Back Button -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-person-circle me-2 text-primary"></i>Customer Details
+        </h2>
+        <div>
+            <a href="{{ return_url }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to List
+            </a>
+            <a href="{% url 'admin_panel:customer_edit' customer.id %}?return_url={{ return_url|urlencode }}" 
+               class="btn btn-warning text-white">
+                <i class="bi bi-pencil me-1"></i>Edit Customer
+            </a>
+        </div>
+    </div>
 
-<a href="{{ return_url }}" class="button">Back to Customers</a>
-<a href="{% url 'admin_panel:customer_edit' customer.id %}?return_url={{ return_url|urlencode }}" class="button">Edit Customer Details</a>
+    <!-- Customer Info Card -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Customer Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <!-- ID -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-hash text-primary"></i> Customer ID
+                                </label>
+                                <div class="fs-5 fw-bold text-dark">#{{ customer.id }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Age -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-calendar3 text-primary"></i> Age
+                                </label>
+                                <div class="fs-5">{{ customer.age|default:"—" }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Gender -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-gender-ambiguous text-primary"></i> Gender
+                                </label>
+                                <div class="fs-5">{{ customer.gender|default:"—" }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Household Size -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-people text-primary"></i> Household Size
+                                </label>
+                                <div class="fs-5">{{ customer.household_size|default:"—" }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Has Children -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-emoji-smile text-primary"></i> Has Children
+                                </label>
+                                <div class="fs-5">
+                                    {% if customer.has_children %}
+                                        <span class="badge bg-success">Yes</span>
+                                    {% elif customer.has_children == False %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Monthly Income -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-currency-dollar text-primary"></i> Monthly Income (SGD)
+                                </label>
+                                <div class="fs-5">
+                                    {% if customer.monthly_income_sgd %}
+                                        ${{ customer.monthly_income_sgd|floatformat:2 }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employment & Education Card -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-briefcase me-2"></i>Professional Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <!-- Employment Status -->
+                        <div class="col-md-4">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-briefcase-fill text-success"></i> Employment Status
+                                </label>
+                                <div class="fs-5">{{ customer.employment_status|default:"—" }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Occupation -->
+                        <div class="col-md-4">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-person-badge text-success"></i> Occupation
+                                </label>
+                                <div class="fs-5">{{ customer.occupation|default:"—" }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Education -->
+                        <div class="col-md-4">
+                            <div class="p-3 border rounded bg-light">
+                                <label class="fw-bold text-muted small d-block mb-1">
+                                    <i class="bi bi-mortarboard-fill text-success"></i> Education
+                                </label>
+                                <div class="fs-5">{{ customer.education|default:"—" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preferred Category Card -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-heart-fill me-2"></i>Shopping Preferences</h5>
+                </div>
+                <div class="card-body">
+                    <div class="p-3 border rounded bg-light">
+                        <label class="fw-bold text-muted small d-block mb-1">
+                            <i class="bi bi-tag-fill text-info"></i> Preferred Category
+                        </label>
+                        <div class="fs-5">
+                            {% if customer.preferred_category %}
+                                <span class="badge bg-info fs-6">{{ customer.preferred_category }}</span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

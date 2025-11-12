@@ -5,198 +5,255 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Aurora Mart Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}AuroraMart Admin Panel{% endblock %}</title>
     <link rel="icon" type="image/png" href="{% static 'images/AuroraMart_Logo.png' %}">
-
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
     <style>
-        /* Reset some default styles */
-        * {
-            box-sizing: border-box;
+        :root {
+            --sidebar-width: 260px;
+            --header-height: 60px;
         }
 
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
 
-        /* Header */
-        header {
-            display: flex;
-            align-items: center;
-            background-color: #333;
+        /* Header/Navbar */
+        .admin-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 10px 20px;
-            height: 60px;
+            height: var(--header-height);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        header img {
+        .admin-header img {
             height: 40px;
-            margin-right: 15px;
+            width: 40px;
+            object-fit: contain;
         }
 
-        header h1 {
+        .admin-header .navbar-brand {
             font-size: 1.5rem;
-            margin: 0;
+            font-weight: 600;
+            color: white !important;
         }
 
-        /* Main layout: sidebar + content */
-        .main {
-            flex: 1;
-            display: flex;
-        }
-
-        nav {
-            width: 20%;
+        /* Sidebar */
+        .admin-sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
             background-color: #2c3e50;
-            color: white;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        nav a {
-            color: white;
-            text-decoration: none;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        nav a:hover {
-            text-decoration: underline;
-        }
-
-        .content {
-            width: 80%;
-            padding: 20px;
-            background-color: #f9f9f9;
             overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
         }
 
-        /* Tables */
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            background-color: white;
+        .admin-sidebar .nav-link {
+            color: #ecf0f1;
+            padding: 12px 20px;
+            border-left: 3px solid transparent;
+            transition: all 0.3s;
         }
 
-        th,
-        td {
-            padding: 8px;
-            border: 1px solid #ccc;
-            text-align: left;
+        .admin-sidebar .nav-link:hover,
+        .admin-sidebar .nav-link.active {
+            background-color: #34495e;
+            border-left-color: #3498db;
+            color: white;
+        }
+
+        .admin-sidebar .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+        }
+
+        /* Main Content */
+        .admin-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            min-height: calc(100vh - var(--header-height) - 50px);
+            padding: 30px;
+            background-color: #f8f9fa;
         }
 
         /* Footer */
-        footer {
-            background-color: #333;
+        .admin-footer {
+            margin-left: var(--sidebar-width);
+            background-color: #2c3e50;
             color: white;
-            padding: 10px 20px;
+            padding: 15px 30px;
             text-align: center;
         }
 
-        a.button {
-            display: inline-block;
-            padding: 5px 10px;
-            background-color: #007BFF;
-            color: white;
-            border-radius: 3px;
-            text-decoration: none;
-            margin-top: 5px;
+        /* Card styling */
+        .content-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            padding: 25px;
+            margin-bottom: 20px;
         }
 
-        a.button:hover {
-            background-color: #0056b3;
+        /* Table improvements */
+        .table {
+            background: white;
         }
 
-        /* Notification Styles */
-        @keyframes slideIn {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
+        .table thead th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            color: #495057;
+        }
+
+        /* Button group styling */
+        .btn-group-sm .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .admin-sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
             }
 
-            to {
+            .admin-sidebar.show {
                 transform: translateX(0);
-                opacity: 1;
+            }
+
+            .admin-content,
+            .admin-footer {
+                margin-left: 0;
+            }
+
+            :root {
+                --sidebar-width: 0px;
             }
         }
 
-        .notification {
-            transition: opacity 0.3s ease-out;
+        /* Page header */
+        .page-header {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
         }
 
-        .notification-success {
-            background-color: #28a745;
-            color: white;
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 0;
         }
 
-        .notification-error {
-            background-color: #dc3545;
-            color: white;
+        /* Filter section styling */
+        .filter-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
 
-        .notification-warning {
-            background-color: #ffc107;
-            color: #333;
+        /* Pagination styling */
+        .pagination {
+            margin-top: 20px;
         }
 
-        .notification-info {
-            background-color: #17a2b8;
-            color: white;
+        .page-link {
+            color: #667eea;
         }
 
-        .notification-debug {
-            background-color: #007BFF;
-            color: white;
-        }
-
-        input,textarea, select {
-            font-family: inherit;
-            /* Uses the same font as the body */
+        .page-item.active .page-link {
+            background-color: #667eea;
+            border-color: #667eea;
         }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body>
     <!-- Header -->
-    <header>
-        <a href="{% url 'admin_panel:dashboard' %}"
-            style="display: flex; align-items: center; text-decoration: none; color: white;">
-            <img src="{% static 'images/AuroraMart_Logo.png' %}" alt="Company Logo">
-            <h1>Admin Panel</h1>
-        </a>
-    </header>
+    <nav class="navbar navbar-expand-lg admin-header fixed-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center" href="{% url 'admin_panel:dashboard' %}">
+                <img src="{% static 'images/AuroraMart_Logo.png' %}" alt="AuroraMart" class="me-2">
+                <span>Admin Panel</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <nav class="admin-sidebar">
+        <div class="nav flex-column">
+            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+               href="{% url 'admin_panel:dashboard' %}">
+                <i class="bi bi-speedometer2"></i>Dashboard
+            </a>
+            <a class="nav-link {% if 'product' in request.resolver_match.url_name %}active{% endif %}" 
+               href="{% url 'admin_panel:product_list' %}">
+                <i class="bi bi-box-seam"></i>Products
+            </a>
+            <a class="nav-link {% if 'customer' in request.resolver_match.url_name %}active{% endif %}" 
+               href="{% url 'admin_panel:customer_list' %}">
+                <i class="bi bi-people"></i>Customers
+            </a>
+            <a class="nav-link {% if 'transaction' in request.resolver_match.url_name %}active{% endif %}" 
+               href="{% url 'admin_panel:transaction_list' %}">
+                <i class="bi bi-receipt"></i>Transactions
+            </a>
+            <a class="nav-link {% if request.resolver_match.url_name == 'inventory_list' %}active{% endif %}" 
+               href="{% url 'admin_panel:inventory_list' %}">
+                <i class="bi bi-archive"></i>Inventory
+            </a>
+            <a class="nav-link {% if 'order' in request.resolver_match.url_name %}active{% endif %}" 
+               href="{% url 'admin_panel:order_list' %}">
+                <i class="bi bi-cart"></i>Inventory Orders
+            </a>
+            <a class="nav-link {% if 'incoming' in request.resolver_match.url_name %}active{% endif %}" 
+               href="{% url 'admin_panel:incoming_stock' %}">
+                <i class="bi bi-truck"></i>Incoming Orders
+            </a>
+            <a class="nav-link {% if 'history' in request.resolver_match.url_name %}active{% endif %}" 
+               href="{% url 'admin_panel:inventory_history' %}">
+                <i class="bi bi-clock-history"></i>Inventory History
+            </a>
+        </div>
+    </nav>
 
     <!-- Notifications -->
     {% include 'base_notifications.html' %}
 
-    <!-- Sidebar + Content -->
-    <div class="main">
-        <nav>
-            <a href="{% url 'admin_panel:dashboard' %}">Dashboard</a>
-            <a href="{% url 'admin_panel:product_list' %}">Products</a>
-            <a href="{% url 'admin_panel:customer_list' %}">Customers</a>
-            <a href="{% url 'admin_panel:transaction_list' %}">Transactions</a>
-            <a href="{% url 'admin_panel:inventory_list' %}">Inventory</a>
-            <a href="{% url 'admin_panel:order_list' %}">Inventory Orders</a>
-            <a href="{% url 'admin_panel:incoming_stock' %}">Incoming Orders</a>
-            <a href="{% url 'admin_panel:inventory_history' %}">Inventory History</a>
-        </nav>
-
-        <div class="content">
-            {% block content %}
-            {% endblock %}
-        </div>
-    </div>
+    <!-- Main Content -->
+    <main class="admin-content">
+        {% block content %}{% endblock %}
+    </main>
 
     <!-- Footer -->
-    <footer>
-        &copy; {{ year|default:"2025" }} Negars4Sale.com
+    <footer class="admin-footer">
+        <small>&copy; {% now "Y" %} AuroraMart. All rights reserved.</small>
     </footer>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>

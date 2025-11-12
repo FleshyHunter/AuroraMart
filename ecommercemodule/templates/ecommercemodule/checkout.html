@@ -1,35 +1,550 @@
 {% extends "ecommercemodule/base.html" %}
-{% block title %}Checkout{% endblock %}
+{% load static %}
+
+{% block title %}Checkout - AuroraMart{% endblock %}
+
+{% block extra_css %}
+<style>
+    .checkout-card {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        margin-bottom: 1.5rem;
+    }
+    
+    .checkout-card .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        padding: 1rem 1.25rem;
+    }
+    
+    .order-summary-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .order-summary-item:last-child {
+        border-bottom: none;
+    }
+    
+    .order-total {
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #198754;
+        padding-top: 1rem;
+        margin-top: 1rem;
+        border-top: 2px solid #dee2e6;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        padding: 0.5rem 1rem;
+        margin: 1.5rem -1.25rem 1rem;
+        font-weight: 600;
+        color: #495057;
+        border-left: 4px solid #0d6efd;
+    }
+    
+    .required-asterisk {
+        color: #dc3545;
+        margin-left: 0.25rem;
+    }
+    
+    .card-number-display {
+        letter-spacing: 0.1rem;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .input-group-text {
+        background-color: #e9ecef;
+    }
+    
+    .product-thumbnail {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 0.375rem;
+    }
+    
+    .sticky-summary {
+        position: sticky;
+        top: 1rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<h3>Checkout</h3>
-{% if items %}
-<table class="table">
-    <thead>
-        <tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Line total</th></tr>
-    </thead>
-    <tbody>
-        {% for item in items %}
-        <tr>
-            <td>{{ item.product.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>${{ item.product.unit_price }}</td>
-            <td>${{ item.line_total }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-<div class="text-end h4">Total: ${{ cart_total }}</div>
-<form method="post" class="mt-3">
-    {% csrf_token %}
-    <div class="form-check mb-3">
-        {{ form.confirm }}
-        <label class="form-check-label" for="{{ form.confirm.id_for_label }}">{{ form.confirm.label }}</label>
-        {% for error in form.confirm.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+<div class="row g-4">
+    <!-- Left Column: Checkout Form -->
+    <div class="col-lg-7">
+        <div class="card checkout-card">
+            <div class="card-header">
+                <i class="bi bi-cart-check me-2"></i>Checkout
+            </div>
+            <div class="card-body">
+                <form method="post" id="checkoutForm">
+                    {% csrf_token %}
+                    
+                    <!-- ================================== -->
+                    <!-- DELIVERY INFORMATION SECTION -->
+                    <!-- ================================== -->
+                    <div class="form-section">
+                        <i class="bi bi-truck me-2"></i>Delivery Information
+                    </div>
+                    
+                    <div class="row g-3">
+                        <!-- Recipient Name -->
+                        <div class="col-md-6">
+                            <label for="{{ form.recipient_name.id_for_label }}" class="form-label">
+                                {{ form.recipient_name.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.recipient_name.name }}" 
+                                   id="{{ form.recipient_name.id_for_label }}"
+                                   value="{{ form.recipient_name.value|default:'' }}"
+                                   class="form-control {% if form.recipient_name.errors %}is-invalid{% endif %}"
+                                   placeholder="Full name of recipient"
+                                   autocomplete="name"
+                                   required>
+                            {% if form.recipient_name.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.recipient_name.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Mobile Number -->
+                        <div class="col-md-6">
+                            <label for="{{ form.mobile_number.id_for_label }}" class="form-label">
+                                {{ form.mobile_number.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <div class="input-group {% if form.mobile_number.errors %}has-validation{% endif %}">
+                                <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                                <input type="text" 
+                                       name="{{ form.mobile_number.name }}" 
+                                       id="{{ form.mobile_number.id_for_label }}"
+                                       value="{{ form.mobile_number.value|default:'' }}"
+                                       class="form-control {% if form.mobile_number.errors %}is-invalid{% endif %}"
+                                       placeholder="e.g., +65 9123 4567 or 91234567"
+                                       autocomplete="tel"
+                                       required>
+                                {% if form.mobile_number.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.mobile_number.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Email -->
+                        <div class="col-12">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">
+                                {{ form.email.label }}
+                            </label>
+                            <div class="input-group {% if form.email.errors %}has-validation{% endif %}">
+                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                <input type="email" 
+                                       name="{{ form.email.name }}" 
+                                       id="{{ form.email.id_for_label }}"
+                                       value="{{ form.email.value|default:'' }}"
+                                       class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+                                       placeholder="your.email@example.com"
+                                       autocomplete="email">
+                                {% if form.email.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.email.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Postal Code -->
+                        <div class="col-md-4">
+                            <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                                {{ form.postal_code.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <div class="input-group {% if form.postal_code.errors %}has-validation{% endif %}">
+                                <input type="text" 
+                                       name="{{ form.postal_code.name }}" 
+                                       id="{{ form.postal_code.id_for_label }}"
+                                       value="{{ form.postal_code.value|default:'' }}"
+                                       class="form-control {% if form.postal_code.errors %}is-invalid{% endif %}"
+                                       placeholder="6-digit postal code"
+                                       autocomplete="postal-code"
+                                       maxlength="6"
+                                       required>
+                                <button class="btn btn-outline-secondary" type="button" id="lookupPostalCode">
+                                    <i class="bi bi-search"></i> Lookup
+                                </button>
+                                {% if form.postal_code.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.postal_code.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">Singapore postal code</small>
+                        </div>
+                        
+                        <!-- Address Line 1 -->
+                        <div class="col-md-8">
+                            <label for="{{ form.address_line1.id_for_label }}" class="form-label">
+                                {{ form.address_line1.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.address_line1.name }}" 
+                                   id="{{ form.address_line1.id_for_label }}"
+                                   value="{{ form.address_line1.value|default:'' }}"
+                                   class="form-control {% if form.address_line1.errors %}is-invalid{% endif %}"
+                                   placeholder="Will auto-fill from postal code"
+                                   autocomplete="address-line1"
+                                   required>
+                            {% if form.address_line1.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.address_line1.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Address Line 2 -->
+                        <div class="col-12">
+                            <label for="{{ form.address_line2.id_for_label }}" class="form-label">
+                                {{ form.address_line2.label }}
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.address_line2.name }}" 
+                                   id="{{ form.address_line2.id_for_label }}"
+                                   value="{{ form.address_line2.value|default:'' }}"
+                                   class="form-control {% if form.address_line2.errors %}is-invalid{% endif %}"
+                                   placeholder="Unit number, floor, etc."
+                                   autocomplete="address-line2">
+                            {% if form.address_line2.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.address_line2.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Delivery Notes -->
+                        <div class="col-12">
+                            <label for="{{ form.delivery_notes.id_for_label }}" class="form-label">
+                                {{ form.delivery_notes.label }}
+                            </label>
+                            <textarea name="{{ form.delivery_notes.name }}" 
+                                      id="{{ form.delivery_notes.id_for_label }}"
+                                      class="form-control {% if form.delivery_notes.errors %}is-invalid{% endif %}"
+                                      placeholder="Any special instructions for delivery..."
+                                      rows="3">{{ form.delivery_notes.value|default:'' }}</textarea>
+                            {% if form.delivery_notes.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.delivery_notes.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- ================================== -->
+                    <!-- PAYMENT INFORMATION SECTION -->
+                    <!-- ================================== -->
+                    <div class="form-section mt-4">
+                        <i class="bi bi-credit-card me-2"></i>Payment Information
+                    </div>
+                    
+                    <div class="row g-3">
+                        <!-- Cardholder Name -->
+                        <div class="col-12">
+                            <label for="{{ form.cardholder_name.id_for_label }}" class="form-label">
+                                {{ form.cardholder_name.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <input type="text" 
+                                   name="{{ form.cardholder_name.name }}" 
+                                   id="{{ form.cardholder_name.id_for_label }}"
+                                   value="{{ form.cardholder_name.value|default:'' }}"
+                                   class="form-control {% if form.cardholder_name.errors %}is-invalid{% endif %}"
+                                   placeholder="Name as shown on card"
+                                   autocomplete="cc-name"
+                                   required>
+                            {% if form.cardholder_name.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.cardholder_name.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Card Number -->
+                        <div class="col-12">
+                            <label for="{{ form.card_number.id_for_label }}" class="form-label">
+                                {{ form.card_number.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <div class="input-group {% if form.card_number.errors %}has-validation{% endif %}">
+                                <span class="input-group-text"><i class="bi bi-credit-card-2-front"></i></span>
+                                <input type="text" 
+                                       name="{{ form.card_number.name }}" 
+                                       id="{{ form.card_number.id_for_label }}"
+                                       value="{{ form.card_number.value|default:'' }}"
+                                       class="form-control {% if form.card_number.errors %}is-invalid{% endif %}"
+                                       placeholder="1234 5678 9012 3456"
+                                       autocomplete="cc-number"
+                                       maxlength="19"
+                                       required>
+                                {% if form.card_number.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.card_number.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">16-digit card number</small>
+                        </div>
+                        
+                        <!-- Expiry Date -->
+                        <div class="col-md-6">
+                            <label for="{{ form.expiry.id_for_label }}" class="form-label">
+                                {{ form.expiry.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <div class="input-group {% if form.expiry.errors %}has-validation{% endif %}">
+                                <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                                <input type="text" 
+                                       name="{{ form.expiry.name }}" 
+                                       id="{{ form.expiry.id_for_label }}"
+                                       value="{{ form.expiry.value|default:'' }}"
+                                       class="form-control {% if form.expiry.errors %}is-invalid{% endif %}"
+                                       placeholder="MM/YY"
+                                       autocomplete="cc-exp"
+                                       maxlength="5"
+                                       required>
+                                {% if form.expiry.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.expiry.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- CVV -->
+                        <div class="col-md-6">
+                            <label for="{{ form.cvv.id_for_label }}" class="form-label">
+                                {{ form.cvv.label }}<span class="required-asterisk">*</span>
+                            </label>
+                            <div class="input-group {% if form.cvv.errors %}has-validation{% endif %}">
+                                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                <input type="text" 
+                                       name="{{ form.cvv.name }}" 
+                                       id="{{ form.cvv.id_for_label }}"
+                                       value="{{ form.cvv.value|default:'' }}"
+                                       class="form-control {% if form.cvv.errors %}is-invalid{% endif %}"
+                                       placeholder="123"
+                                       autocomplete="cc-csc"
+                                       maxlength="3"
+                                       required>
+                                {% if form.cvv.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.cvv.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                            <i class="bi bi-lock-fill me-2"></i>
+                            Place Order - ${{ cart_total|floatformat:2 }}
+                        </button>
+                        <a href="{% url 'store:view_cart' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>Back to Cart
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-    <button class="btn btn-success">Place Order</button>
-    <a class="btn btn-link" href="{% url 'store:view_cart' %}">Back to cart</a>
-</form>
-{% else %}
-<p>Your cart is empty.</p>
-{% endif %}
+    
+    <!-- Right Column: Order Summary -->
+    <div class="col-lg-5">
+        <div class="sticky-summary">
+            <div class="card checkout-card">
+                <div class="card-header">
+                    <i class="bi bi-receipt me-2"></i>Order Summary
+                </div>
+                <div class="card-body">
+                    <!-- Cart Items -->
+                    {% for item in items %}
+                    <div class="order-summary-item">
+                        <div class="d-flex align-items-center gap-3 flex-grow-1">
+                            <div class="flex-shrink-0">
+                                {% if item.product.get_image_url %}
+                                    <img src="{{ item.product.get_image_url }}" alt="{{ item.product.name }}" 
+                                         class="rounded" style="width: 60px; height: 60px; object-fit: cover;">
+                                {% else %}
+                                    <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                                         style="width: 60px; height: 60px;">
+                                        <i class="bi bi-box-seam text-muted" style="font-size: 1.5rem;"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">{{ item.product.name }}</div>
+                                <small class="text-muted">Qty: {{ item.quantity }}</small>
+                            </div>
+                        </div>
+                        <div class="text-end fw-semibold">
+                            ${{ item.product.unit_price|floatformat:2 }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Subtotal and Total -->
+                    <div class="mt-3 pt-3 border-top">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Subtotal ({{ item_count }} item{{ item_count|pluralize }})</span>
+                            <span>${{ cart_total|floatformat:2 }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Delivery</span>
+                            <span class="text-success">FREE</span>
+                        </div>
+                    </div>
+                    
+                    <div class="order-total d-flex justify-content-between">
+                        <span>Total</span>
+                        <span>${{ cart_total|floatformat:2 }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Security Notice -->
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-shield-check me-2"></i>
+                <small>
+                    <strong>Secure Checkout:</strong> Your payment information is encrypted and secure.
+                    We never store your CVV.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ========================================
+    // Postal Code Lookup (Singapore OneMap API)
+    // ========================================
+    const postalCodeInput = document.getElementById('{{ form.postal_code.id_for_label }}');
+    const addressLine1Input = document.getElementById('{{ form.address_line1.id_for_label }}');
+    const lookupBtn = document.getElementById('lookupPostalCode');
+    
+    if (lookupBtn && postalCodeInput && addressLine1Input) {
+        lookupBtn.addEventListener('click', function() {
+            const postalCode = postalCodeInput.value.trim();
+            
+            if (!postalCode || postalCode.length !== 6) {
+                alert('Please enter a valid 6-digit postal code.');
+                return;
+            }
+            
+            // Disable button and show loading state
+            lookupBtn.disabled = true;
+            lookupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading...';
+            
+            // Call Singapore OneMap API
+            fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=N&getAddrDetails=Y`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.found > 0 && data.results.length > 0) {
+                        const result = data.results[0];
+                        // Populate address line 1 with the address
+                        addressLine1Input.value = result.ADDRESS || result.BLK_NO + ' ' + result.ROAD_NAME;
+                        addressLine1Input.focus();
+                        
+                        // Show success feedback
+                        const feedback = document.createElement('div');
+                        feedback.className = 'alert alert-success alert-dismissible fade show mt-2';
+                        feedback.innerHTML = `
+                            <i class="bi bi-check-circle me-2"></i>Address found!
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        postalCodeInput.parentElement.parentElement.appendChild(feedback);
+                        
+                        setTimeout(() => feedback.remove(), 3000);
+                    } else {
+                        alert('No address found for this postal code. Please enter the address manually.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching address:', error);
+                    alert('Unable to lookup address. Please enter manually.');
+                })
+                .finally(() => {
+                    // Reset button state
+                    lookupBtn.disabled = false;
+                    lookupBtn.innerHTML = '<i class="bi bi-search"></i> Lookup';
+                });
+        });
+        
+        // Also allow Enter key to trigger lookup
+        postalCodeInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                lookupBtn.click();
+            }
+        });
+    }
+    
+    // ========================================
+    // Visual formatting helpers (cosmetic only, no validation)
+    // ========================================
+    
+    // Card Number: Add spaces every 4 digits for readability
+    const cardNumberInput = document.getElementById('{{ form.card_number.id_for_label }}');
+    if (cardNumberInput) {
+        cardNumberInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\s/g, '');
+            let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+            e.target.value = formattedValue;
+        });
+    }
+    
+    // Expiry Date: Auto-add slash for MM/YY format
+    const expiryInput = document.getElementById('{{ form.expiry.id_for_label }}');
+    if (expiryInput) {
+        expiryInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.slice(0, 2) + '/' + value.slice(2, 4);
+            }
+            e.target.value = value;
+        });
+    }
+    
+    // CVV: Limit to 3 numeric characters
+    const cvvInput = document.getElementById('{{ form.cvv.id_for_label }}');
+    if (cvvInput) {
+        cvvInput.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '').slice(0, 3);
+        });
+    }
+    
+    // ========================================
+    // Submit Button Loading State
+    // ========================================
+    const form = document.getElementById('checkoutForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (submitBtn && form) {
+        form.addEventListener('submit', function(e) {
+            // Show loading state when form is submitted
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                Processing...
+            `;
+        });
+    }
+});
+</script>
 {% endblock %}

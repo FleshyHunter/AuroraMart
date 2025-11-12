@@ -1,110 +1,243 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Customers</h1>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 
-<form method="get" style="margin-top:15px; margin-bottom:15px;">
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-        <input type="text" name="q" placeholder="Search Customer ID..." value="{{ search_id }}" style="width: 200px;">
+<div class="container-fluid px-4 py-4">
+    <!-- Header -->
+    <div class="mb-4">
+        <h2 class="mb-0"><i class="bi bi-people-fill me-2"></i>Customer Management</h2>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 5px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <strong>Filter:</strong>
-            <select name="gender">
-                <option value="">All Genders</option>
-                {% for g in genders %}
-                    <option value="{{ g }}" {% if g == gender_filter %}selected{% endif %}>{{ g }}</option>
-                {% endfor %}
-            </select>
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" id="customerFilterForm">
+                <div class="row g-3">
+                    <!-- Search -->
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Search ID</label>
+                        <input type="text" name="q" class="form-control" placeholder="Customer ID..." value="{{ search_id }}">
+                    </div>
 
-            <select name="occupation">
-                <option value="">All Occupations</option>
-                {% for o in occupations %}
-                    <option value="{{ o }}" {% if o == occupation_filter %}selected{% endif %}>{{ o }}</option>
-                {% endfor %}
-            </select>
+                    <!-- Gender Filter -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small">Gender</label>
+                        <select name="gender" class="form-select">
+                            <option value="">All Genders</option>
+                            {% for g in genders %}
+                                <option value="{{ g }}" {% if g == gender_filter %}selected{% endif %}>{{ g }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
 
-            <select name="education">
-                <option value="">All Education</option>
-                {% for e in educations %}
-                    <option value="{{ e }}" {% if e == education_filter %}selected{% endif %}>{{ e }}</option>
-                {% endfor %}
-            </select>
+                    <!-- Occupation Filter -->
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Occupation</label>
+                        <select name="occupation" class="form-select">
+                            <option value="">All Occupations</option>
+                            {% for o in occupations %}
+                                <option value="{{ o }}" {% if o == occupation_filter %}selected{% endif %}>{{ o }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
 
-            <input type="number" name="age" placeholder="Max Age" min="0" max="100" value="{{ age_filter }}" style="width:100px;">
+                    <!-- Education Filter -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small">Education</label>
+                        <select name="education" class="form-select">
+                            <option value="">All Education</option>
+                            {% for e in educations %}
+                                <option value="{{ e }}" {% if e == education_filter %}selected{% endif %}>{{ e }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Age Filter -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small">Max Age</label>
+                        <input type="number" name="age" class="form-control" placeholder="Age" min="0" max="100" value="{{ age_filter }}">
+                    </div>
+                </div>
+
+
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel me-1"></i>Apply Filters
+                    </button>
+                    <a href="{% url 'admin_panel:customer_list' %}" class="btn btn-outline-secondary ms-2">
+                        <i class="bi bi-x-circle me-1"></i>Clear
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <strong>Sort:</strong>
-            
-            <select name="age_order">
-                <option value="">Age</option>
-                <option value="asc" {% if age_order == 'asc' %}selected{% endif %}>Youngest to Oldest</option>
-                <option value="desc" {% if age_order == 'desc' %}selected{% endif %}>Oldest to Youngest</option>
-            </select>
-
-            <select name="gender_order">
-                <option value="">Gender</option>
-                <option value="asc" {% if gender_order == 'asc' %}selected{% endif %}>Male → Female</option>
-                <option value="desc" {% if gender_order == 'desc' %}selected{% endif %}>Female → Male</option>
-            </select>
-
-            <select name="occupation_order">
-                <option value="">Occupation</option>
-                <option value="asc" {% if occupation_order == 'asc' %}selected{% endif %}>A → Z</option>
-                <option value="desc" {% if occupation_order == 'desc' %}selected{% endif %}>Z → A</option>
-            </select>
-
-            <select name="education_order">
-                <option value="">Education</option>
-                <option value="asc" {% if education_order == 'asc' %}selected{% endif %}>Secondary → Masters</option>
-                <option value="desc" {% if education_order == 'desc' %}selected{% endif %}>Masters → Secondary</option>
-            </select>
-        </div>
-
-        <button type="submit" style="padding:6px 20px; background-color:#007BFF; color:white; border:none; border-radius:4px; cursor:pointer;">Apply</button>
+    <!-- Results Count -->
+    <div class="alert alert-info mb-3">
+        <i class="bi bi-info-circle me-2"></i>
+        Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }} customers
     </div>
-</form>
 
-<table border="1" cellpadding="8">
-    <tr>
-        <th>ID</th>
-        <th>Age</th>
-        <th>Gender</th>
-        <th>Occupation</th>
-        <th>Education</th>
-        <th>Actions</th>
-    </tr>
-    {% for customer in page_obj %}
-    <tr>
-        <td>{{ customer.id }}</td>
-        <td>{{ customer.age }}</td>
-        <td>{{ customer.gender }}</td>
-        <td>{{ customer.occupation }}</td>
-        <td>{{ customer.education }}</td>
-        <td>
-            <a href="{% url 'admin_panel:customer_detail' customer.id %}?return_url={{ request.get_full_path|urlencode }}">View</a>
-            <a href="{% url 'admin_panel:customer_edit' customer.id %}?return_url={{ request.get_full_path|urlencode }}">Edit</a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
+    <!-- Table Card -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="text-center" style="width: 80px;">ID</th>
+                            <th style="width: 100px;">
+                                Age
+                                <a href="?age_order={% if age_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                                   class="btn btn-sm btn-outline-light ms-1 py-0 px-1" 
+                                   style="font-size: 0.75rem;">
+                                    {% if age_order == 'asc' %}
+                                        <i class="bi bi-sort-up"></i>
+                                    {% elif age_order == 'desc' %}
+                                        <i class="bi bi-sort-down"></i>
+                                    {% else %}
+                                        <i class="bi bi-arrow-down-up"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th style="width: 120px;">
+                                Gender
+                                <a href="?gender_order={% if gender_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                                   class="btn btn-sm btn-outline-light ms-1 py-0 px-1" 
+                                   style="font-size: 0.75rem;">
+                                    {% if gender_order == 'asc' %}
+                                        <i class="bi bi-sort-alpha-down"></i>
+                                    {% elif gender_order == 'desc' %}
+                                        <i class="bi bi-sort-alpha-up"></i>
+                                    {% else %}
+                                        <i class="bi bi-arrow-down-up"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                Occupation
+                                <a href="?occupation_order={% if occupation_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                                   class="btn btn-sm btn-outline-light ms-1 py-0 px-1" 
+                                   style="font-size: 0.75rem;">
+                                    {% if occupation_order == 'asc' %}
+                                        <i class="bi bi-sort-alpha-down"></i>
+                                    {% elif occupation_order == 'desc' %}
+                                        <i class="bi bi-sort-alpha-up"></i>
+                                    {% else %}
+                                        <i class="bi bi-arrow-down-up"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                Education
+                                <a href="?education_order={% if education_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                                   class="btn btn-sm btn-outline-light ms-1 py-0 px-1" 
+                                   style="font-size: 0.75rem;">
+                                    {% if education_order == 'asc' %}
+                                        <i class="bi bi-sort-alpha-down"></i>
+                                    {% elif education_order == 'desc' %}
+                                        <i class="bi bi-sort-alpha-up"></i>
+                                    {% else %}
+                                        <i class="bi bi-arrow-down-up"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th>Employment</th>
+                            <th class="text-end" style="width: 180px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for customer in page_obj %}
+                        <tr>
+                            <td class="text-center fw-bold">#{{ customer.id }}</td>
+                            <td>{{ customer.age|default:"—" }}</td>
+                            <td>{{ customer.gender|default:"—" }}</td>
+                            <td>{{ customer.occupation|default:"—" }}</td>
+                            <td>{{ customer.education|default:"—" }}</td>
+                            <td>{{ customer.employment_status|default:"—" }}</td>
+                            <td class="text-end">
+                                <a href="{% url 'admin_panel:customer_detail' customer.id %}?return_url={{ request.get_full_path|urlencode }}" 
+                                   class="btn btn-sm btn-info text-white me-1" 
+                                   title="View Details">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <a href="{% url 'admin_panel:customer_edit' customer.id %}?return_url={{ request.get_full_path|urlencode }}" 
+                                   class="btn btn-sm btn-warning text-white" 
+                                   title="Edit Customer">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                                <p class="mb-0">No customers found matching your criteria.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-<div style="margin-top:15px;">
-    {% if page_obj.has_previous %}
-        <a href="?page=1{% if search_id %}&q={{ search_id }}{% endif %}{% if gender_filter %}&gender={{ gender_filter }}{% endif %}{% if occupation_filter %}&occupation={{ occupation_filter }}{% endif %}{% if education_filter %}&education={{ education_filter }}{% endif %}{% if age_filter %}&age={{ age_filter }}{% endif %}{% if age_order %}&age_order={{ age_order }}{% endif %}{% if gender_order %}&gender_order={{ gender_order }}{% endif %}{% if occupation_order %}&occupation_order={{ occupation_order }}{% endif %}{% if education_order %}&education_order={{ education_order }}{% endif %}">First</a>
-        <a href="?page={{ page_obj.previous_page_number }}{% if search_id %}&q={{ search_id }}{% endif %}{% if gender_filter %}&gender={{ gender_filter }}{% endif %}{% if occupation_filter %}&occupation={{ occupation_filter }}{% endif %}{% if education_filter %}&education={{ education_filter }}{% endif %}{% if age_filter %}&age={{ age_filter }}{% endif %}{% if age_order %}&age_order={{ age_order }}{% endif %}{% if gender_order %}&gender_order={{ gender_order }}{% endif %}{% if occupation_order %}&occupation_order={{ occupation_order }}{% endif %}{% if education_order %}&education_order={{ education_order }}{% endif %}">Previous</a>
-    {% endif %}
+    <!-- Pagination -->
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav aria-label="Customer pagination" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if query_params %}&{{ query_params }}{% endif %}">
+                        <i class="bi bi-chevron-double-left"></i> First
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-double-left"></i> First</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left"></i> Previous</span>
+                </li>
+            {% endif %}
 
-    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            <li class="page-item active">
+                <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
 
-    {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if search_id %}&q={{ search_id }}{% endif %}{% if gender_filter %}&gender={{ gender_filter }}{% endif %}{% if occupation_filter %}&occupation={{ occupation_filter }}{% endif %}{% if education_filter %}&education={{ education_filter }}{% endif %}{% if age_filter %}&age={{ age_filter }}{% endif %}{% if age_order %}&age_order={{ age_order }}{% endif %}{% if gender_order %}&gender_order={{ gender_order }}{% endif %}{% if occupation_order %}&occupation_order={{ occupation_order }}{% endif %}{% if education_order %}&education_order={{ education_order }}{% endif %}">Next</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_id %}&q={{ search_id }}{% endif %}{% if gender_filter %}&gender={{ gender_filter }}{% endif %}{% if occupation_filter %}&occupation={{ occupation_filter }}{% endif %}{% if education_filter %}&education={{ education_filter }}{% endif %}{% if age_filter %}&age={{ age_filter }}{% endif %}{% if age_order %}&age_order={{ age_order }}{% endif %}{% if gender_order %}&gender_order={{ gender_order }}{% endif %}{% if occupation_order %}&occupation_order={{ occupation_order }}{% endif %}{% if education_order %}&education_order={{ education_order }}{% endif %}">Last</a>
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if query_params %}&{{ query_params }}{% endif %}">
+                        Last <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next <i class="bi bi-chevron-right"></i></span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">Last <i class="bi bi-chevron-double-right"></i></span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
     {% endif %}
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

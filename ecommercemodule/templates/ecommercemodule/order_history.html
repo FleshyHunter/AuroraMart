@@ -1,26 +1,182 @@
 {% extends "ecommercemodule/base.html" %}
-{% block title %}Order History{% endblock %}
+{% load static %}
+
+{% block title %}My Orders - AuroraMart{% endblock %}
+
 {% block content %}
-<h3>Past Orders</h3>
-{% for order in orders %}
-<div class="card mb-3">
-    <div class="card-header d-flex justify-content-between">
-        <div>Order #{{ order.pk }} · {{ order.created_at|date:"SHORT_DATETIME_FORMAT" }}</div>
-        <span class="badge bg-secondary">{{ order.status }}</span>
+<div class="container py-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-clock-history me-2"></i>My Orders
+            </h2>
+            <p class="text-muted mb-0">View and track your order history</p>
+        </div>
+        <a href="{% url 'ecommercemodule:home' %}" class="btn btn-outline-primary">
+            <i class="bi bi-house-door me-2"></i>Back to Home
+        </a>
     </div>
-    <div class="card-body">
-        <ul class="list-group list-group-flush">
-            {% for item in order.items.all %}
-                <li class="list-group-item d-flex justify-content-between">
-                    <span>{{ item.product.name }} (×{{ item.quantity }})</span>
-                    <span>${{ item.line_total }}</span>
-                </li>
+
+    {% if page_obj.object_list %}
+        <!-- Orders List -->
+        <div class="row g-3">
+            {% for order in page_obj %}
+            <div class="col-12">
+                <div class="card shadow-sm hover-shadow transition">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <!-- Order Info -->
+                            <div class="col-lg-3 mb-3 mb-lg-0">
+                                <div class="text-muted small mb-1">Order Number</div>
+                                <div class="fw-bold fs-5">#{{ order.id }}</div>
+                                <div class="text-muted small">
+                                    {{ order.created_at|date:"M d, Y" }}
+                                </div>
+                            </div>
+
+                            <!-- Items Summary -->
+                            <div class="col-lg-4 mb-3 mb-lg-0">
+                                <div class="text-muted small mb-1">Items</div>
+                                <div class="item-list">
+                                    {% for item in order.items.all|slice:":3" %}
+                                        <div class="small">
+                                            <i class="bi bi-box me-1"></i>
+                                            {{ item.product.name }} 
+                                            <span class="text-muted">(×{{ item.quantity }})</span>
+                                        </div>
+                                    {% endfor %}
+                                    {% if order.items.count > 3 %}
+                                        <div class="small text-muted">
+                                            + {{ order.items.count|add:"-3" }} more item{{ order.items.count|add:"-3"|pluralize }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Status & Total -->
+                            <div class="col-lg-3 mb-3 mb-lg-0">
+                                <div class="text-muted small mb-1">Status & Total</div>
+                                <div class="mb-2">
+                                    {% if order.status == 'PAID' %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle me-1"></i>Paid
+                                        </span>
+                                    {% elif order.status == 'PENDING' %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-clock me-1"></i>Pending
+                                        </span>
+                                    {% elif order.status == 'CANCELLED' %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x-circle me-1"></i>Cancelled
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="fw-bold text-success fs-5">
+                                    ${{ order.total_amount|floatformat:2 }}
+                                </div>
+                            </div>
+
+                            <!-- Action Button -->
+                            <div class="col-lg-2 text-lg-end">
+                                <a href="{% url 'ecommercemodule:order_detail' order.id %}" 
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye me-1"></i>View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% endfor %}
-        </ul>
-        <div class="text-end mt-2 fw-bold">Total: ${{ order.total_amount }}</div>
-    </div>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav aria-label="Order history pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">
+                            <i class="bi bi-chevron-double-left"></i> First
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="bi bi-chevron-double-left"></i> First</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="bi bi-chevron-left"></i> Previous</span>
+                    </li>
+                {% endif %}
+
+                <li class="page-item active">
+                    <span class="page-link">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                            Last <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next <i class="bi bi-chevron-right"></i></span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Last <i class="bi bi-chevron-double-right"></i></span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+
+    {% else %}
+        <!-- Empty State -->
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted mb-3"></i>
+                <h4>No Orders Yet</h4>
+                <p class="text-muted mb-4">You haven't placed any orders yet. Start shopping to see your order history here!</p>
+                <a href="{% url 'ecommercemodule:category_list' %}" class="btn btn-primary">
+                    <i class="bi bi-shop me-2"></i>Start Shopping
+                </a>
+            </div>
+        </div>
+    {% endif %}
 </div>
-{% empty %}
-<p>You have not placed any orders yet.</p>
-{% endfor %}
+
+<style>
+.hover-shadow {
+    transition: box-shadow 0.3s ease;
+}
+
+.hover-shadow:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.transition {
+    transition: all 0.3s ease;
+}
+
+.item-list {
+    max-height: 100px;
+    overflow-y: auto;
+}
+</style>
 {% endblock %}

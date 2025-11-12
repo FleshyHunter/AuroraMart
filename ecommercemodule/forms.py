@@ -238,6 +238,281 @@ class CheckoutConfirmForm(forms.Form):
     )
 
 
+class CheckoutForm(forms.Form):
+    """
+    Comprehensive checkout form with delivery and payment information.
+    Includes server-side validation for Singapore postal codes, mobile numbers,
+    card details (Luhn check), expiry dates, and CVV.
+    """
+    
+    # ========================================
+    # Customer / Delivery Information
+    # ========================================
+    recipient_name = forms.CharField(
+        max_length=255,
+        required=True,
+        label="Recipient Name",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Full name of recipient",
+            "autocomplete": "name"
+        })
+    )
+    
+    mobile_number = forms.CharField(
+        max_length=20,
+        required=True,
+        label="Mobile Number",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g., +65 9123 4567 or 91234567",
+            "autocomplete": "tel"
+        })
+    )
+    
+    email = forms.EmailField(
+        required=False,
+        label="Email Address (Optional)",
+        widget=forms.EmailInput(attrs={
+            "class": "form-control",
+            "placeholder": "your.email@example.com",
+            "autocomplete": "email"
+        })
+    )
+    
+    postal_code = forms.CharField(
+        max_length=6,
+        required=True,
+        label="Postal Code",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "6-digit Singapore postal code",
+            "autocomplete": "postal-code"
+        })
+    )
+    
+    address_line1 = forms.CharField(
+        max_length=255,
+        required=True,
+        label="Street / Address Line 1",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Will auto-fill from postal code",
+            "autocomplete": "address-line1"
+        })
+    )
+    
+    address_line2 = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Unit / Address Line 2 (Optional)",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Unit number, floor, etc.",
+            "autocomplete": "address-line2"
+        })
+    )
+    
+    delivery_notes = forms.CharField(
+        required=False,
+        label="Delivery Notes (Optional)",
+        widget=forms.Textarea(attrs={
+            "class": "form-control",
+            "placeholder": "Any special instructions for delivery...",
+            "rows": 3
+        })
+    )
+    
+    # ========================================
+    # Payment Information
+    # ========================================
+    cardholder_name = forms.CharField(
+        max_length=255,
+        required=True,
+        label="Cardholder Name",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Name as shown on card",
+            "autocomplete": "cc-name"
+        })
+    )
+    
+    card_number = forms.CharField(
+        max_length=19,  # 16 digits + 3 spaces
+        required=True,
+        label="Card Number",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "1234 5678 9012 3456",
+            "autocomplete": "cc-number"
+        })
+    )
+    
+    expiry = forms.CharField(
+        max_length=5,
+        required=True,
+        label="Expiry Date (MM/YY)",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "MM/YY",
+            "autocomplete": "cc-exp"
+        })
+    )
+    
+    cvv = forms.CharField(
+        max_length=3,
+        required=True,
+        label="CVV",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "123",
+            "autocomplete": "cc-csc"
+        })
+    )
+    
+    # ========================================
+    # Validation Methods
+    # ========================================
+    
+    def clean_postal_code(self):
+        """Validate Singapore postal code (exactly 6 digits)."""
+        postal_code = self.cleaned_data.get("postal_code", "").strip()
+        
+        # Remove any spaces or dashes
+        postal_code = postal_code.replace(" ", "").replace("-", "")
+        
+        # Check if exactly 6 digits
+        import re
+        if not re.match(r'^\d{6}$', postal_code):
+            raise forms.ValidationError(
+                "Please enter a valid 6-digit Singapore postal code."
+            )
+        
+        return postal_code
+    
+    def clean_mobile_number(self):
+        """Validate mobile number (at least 8 digits, allow +65 prefix)."""
+        mobile = self.cleaned_data.get("mobile_number", "").strip()
+        
+        # Remove common formatting characters
+        cleaned = mobile.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        
+        # Remove +65 country code if present
+        if cleaned.startswith("+65"):
+            cleaned = cleaned[3:]
+        elif cleaned.startswith("65") and len(cleaned) > 8:
+            cleaned = cleaned[2:]
+        
+        # Check if at least 8 digits remain
+        import re
+        if not re.match(r'^\d{8,}$', cleaned):
+            raise forms.ValidationError(
+                "Please enter a valid mobile number (at least 8 digits)."
+            )
+        
+        # Return formatted version with +65 prefix
+        return f"+65{cleaned}"
+    
+    def clean_card_number(self):
+        """Validate card number (16 digits with Luhn check)."""
+        card_number = self.cleaned_data.get("card_number", "").strip()
+        
+        # Remove spaces
+        card_number = card_number.replace(" ", "").replace("-", "")
+        
+        # Check if exactly 16 digits
+        import re
+        if not re.match(r'^\d{16}$', card_number):
+            raise forms.ValidationError(
+                "Card number must be exactly 16 digits."
+            )
+        
+        # Perform Luhn check
+        if not self._luhn_check(card_number):
+            raise forms.ValidationError(
+                "Card number is invalid. Please check and try again."
+            )
+        
+        return card_number
+    
+    def clean_expiry(self):
+        """Validate expiry date (MM/YY format and must be in the future)."""
+        expiry = self.cleaned_data.get("expiry", "").strip()
+        
+        # Check format
+        import re
+        if not re.match(r'^\d{2}/\d{2}$', expiry):
+            raise forms.ValidationError(
+                "Expiry date must be in MM/YY format."
+            )
+        
+        # Parse month and year
+        try:
+            month_str, year_str = expiry.split("/")
+            month = int(month_str)
+            year = int(year_str) + 2000  # Convert YY to YYYY
+            
+            # Validate month range
+            if not 1 <= month <= 12:
+                raise forms.ValidationError(
+                    "Invalid month. Please enter a value between 01 and 12."
+                )
+            
+            # Check if date is in the future
+            from datetime import datetime
+            now = datetime.now()
+            
+            # Card expires at end of the month
+            if year < now.year or (year == now.year and month < now.month):
+                raise forms.ValidationError(
+                    "Expiry date must be in the future."
+                )
+            
+        except (ValueError, AttributeError):
+            raise forms.ValidationError(
+                "Invalid expiry date format."
+            )
+        
+        return expiry
+    
+    def clean_cvv(self):
+        """Validate CVV (exactly 3 digits)."""
+        cvv = self.cleaned_data.get("cvv", "").strip()
+        
+        # Check if exactly 3 digits
+        import re
+        if not re.match(r'^\d{3}$', cvv):
+            raise forms.ValidationError(
+                "CVV must be exactly 3 digits."
+            )
+        
+        return cvv
+    
+    @staticmethod
+    def _luhn_check(card_number: str) -> bool:
+        """
+        Implement Luhn algorithm to validate card number.
+        
+        The Luhn algorithm:
+        1. From rightmost digit (excluding check digit), double every second digit
+        2. If doubled value > 9, subtract 9
+        3. Sum all digits
+        4. If sum % 10 == 0, card number is valid
+        """
+        def digits_of(n):
+            return [int(d) for d in str(n)]
+        
+        digits = digits_of(card_number)
+        odd_digits = digits[-1::-2]
+        even_digits = digits[-2::-2]
+        
+        checksum = sum(odd_digits)
+        for digit in even_digits:
+            checksum += sum(digits_of(digit * 2))
+        
+        return checksum % 10 == 0
+
+
 class StorePasswordResetForm(PasswordResetForm):
     """
     Swallows “email not found” errors while still logging the attempt so

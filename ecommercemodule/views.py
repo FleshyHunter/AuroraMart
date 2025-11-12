@@ -20,6 +20,7 @@ from .forms import (
     AddToCartForm,
     CartItemUpdateForm,
     CheckoutConfirmForm,
+    CheckoutForm,
     CustomerForm,
     LoginForm,
     ProfileCompletionForm,
@@ -321,9 +322,16 @@ def deactivate_account(request):
 
 @login_required
 def order_history(request):
+    from django.core.paginator import Paginator
     profile = _get_or_create_profile(request.user)
-    orders = profile.orders.prefetch_related("items__product")
-    return render(request, "ecommercemodule/order_history.html", {"orders": orders})
+    orders = profile.orders.prefetch_related("items__product").order_by("-created_at")
+    
+    # Pagination - 10 orders per page
+    paginator = Paginator(orders, 10)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, "ecommercemodule/order_history.html", {"page_obj": page_obj})
 
 
 @require_POST
@@ -437,61 +445,206 @@ def remove_from_cart(request, cart_item_id):
     return redirect("ecommercemodule:view_cart")
 
 
+def perform_checkout(payload: dict):
+    """
+    Placeholder function to process checkout payment and create order.
+    
+    In production, this would:
+    - Integrate with a payment gateway (Stripe, PayPal, etc.)
+    - Verify payment success
+    - Create Order and OrderItem records
+    - Update product inventory
+    - Send confirmation emails
+    
+    Args:
+        payload: Dictionary containing:
+            - customer_info: recipient_name, mobile_number, email, postal_code, 
+                           address_line1, address_line2, delivery_notes
+            - payment_info: cardholder_name, card_number (masked), expiry, cvv
+            - order_info: items, cart_total, customer_profile
+    
+    Returns:
+        order_id (int): The created order ID on success
+    
+    Raises:
+        Exception: On payment or order creation failure
+    """
+    # TODO: Integrate with real payment gateway
+    print("=" * 60)
+    print("CHECKOUT PAYLOAD (Development Mode)")
+    print("=" * 60)
+    
+    # Customer/Delivery Information
+    print("\n[DELIVERY INFORMATION]")
+    customer_info = payload.get("customer_info", {})
+    for key, value in customer_info.items():
+        print(f"  {key}: {value}")
+    
+    # Payment Information (with masked card number)
+    print("\n[PAYMENT INFORMATION]")
+    payment_info = payload.get("payment_info", {})
+    for key, value in payment_info.items():
+        if key == "card_number":
+            # Mask all but last 4 digits
+            print(f"  {key}: **** **** **** {value[-4:]}")
+        elif key == "cvv":
+            print(f"  {key}: ***")
+        else:
+            print(f"  {key}: {value}")
+    
+    # Order Summary
+    print("\n[ORDER SUMMARY]")
+    order_info = payload.get("order_info", {})
+    print(f"  Total Amount: ${order_info.get('cart_total', 0):.2f}")
+    print(f"  Number of Items: {len(order_info.get('items', []))}")
+    
+    print("\n" + "=" * 60)
+    print("Note: Payment processing is simulated in development mode.")
+    print("=" * 60 + "\n")
+    
+    # In production, return the created order_id
+    # For now, return None to indicate success without actual order creation
+    return None
+
+
 @login_required
 def checkout(request):
+    """
+    Handle checkout process with comprehensive form validation.
+    
+    GET: Display checkout form with cart summary
+    POST: Validate form, process payment, create order
+    """
     cart = _ensure_cart(request)
     items = list(cart.items.select_related("product"))
+    
+    # Ensure cart is not empty
     if not items:
-        messages.error(request, "Your cart is empty.")
+        messages.error(request, "Your cart is empty. Please add items before checking out.")
         return redirect("ecommercemodule:view_cart")
-
+    
+    # Calculate cart total
+    cart_total = sum(
+        (item.product.unit_price * item.quantity for item in items),
+        Decimal("0.00")
+    )
+    
+    # Handle form submission
     if request.method == "POST":
-        form = CheckoutConfirmForm(request.POST)
+        form = CheckoutForm(request.POST)
+        
         if form.is_valid():
+            # Check stock availability one more time before processing
             with transaction.atomic():
                 for item in items:
                     if item.quantity > item.product.quantity_on_hand:
                         messages.error(
                             request,
-                            f"Not enough stock for {item.product.name}. Please adjust your cart.",
+                            f"Sorry, {item.product.name} is out of stock or has insufficient quantity. "
+                            f"Please adjust your cart."
                         )
                         return redirect("ecommercemodule:view_cart")
-                total = sum(
-                    (item.product.unit_price * item.quantity for item in items),
-                    Decimal("0.00"),
-                )
-                profile = _get_or_create_profile(request.user)
-                order = Order.objects.create(
-                    customer=profile,
-                    total_amount=total,
-                )
-                order_items = [
-                    OrderItem(
-                        order=order,
-                        product=item.product,
-                        quantity=item.quantity,
-                        unit_price=item.product.unit_price,
+                
+                # Build payload with cleaned form data
+                payload = {
+                    "customer_info": {
+                        "recipient_name": form.cleaned_data["recipient_name"],
+                        "mobile_number": form.cleaned_data["mobile_number"],
+                        "email": form.cleaned_data.get("email", ""),
+                        "postal_code": form.cleaned_data["postal_code"],
+                        "address_line1": form.cleaned_data["address_line1"],
+                        "address_line2": form.cleaned_data.get("address_line2", ""),
+                        "delivery_notes": form.cleaned_data.get("delivery_notes", ""),
+                    },
+                    "payment_info": {
+                        "cardholder_name": form.cleaned_data["cardholder_name"],
+                        "card_number": form.cleaned_data["card_number"],
+                        "expiry": form.cleaned_data["expiry"],
+                        "cvv": form.cleaned_data["cvv"],
+                    },
+                    "order_info": {
+                        "items": items,
+                        "cart_total": cart_total,
+                        "customer_profile": _get_or_create_profile(request.user),
+                    }
+                }
+                
+                try:
+                    # Process checkout (placeholder - will integrate with payment gateway later)
+                    order_id = perform_checkout(payload)
+                    
+                    # Create order record
+                    profile = _get_or_create_profile(request.user)
+                    order = Order.objects.create(
+                        customer=profile,
+                        total_amount=cart_total,
                     )
-                    for item in items
-                ]
-                OrderItem.objects.bulk_create(order_items)
-                for item in items:
-                    Product.objects.select_for_update().filter(pk=item.product.pk).update(
-                        quantity_on_hand=F("quantity_on_hand") - item.quantity
+                    
+                    # Create order items
+                    order_items = [
+                        OrderItem(
+                            order=order,
+                            product=item.product,
+                            quantity=item.quantity,
+                            unit_price=item.product.unit_price,
+                        )
+                        for item in items
+                    ]
+                    OrderItem.objects.bulk_create(order_items)
+                    
+                    # Update product inventory
+                    for item in items:
+                        Product.objects.select_for_update().filter(pk=item.product.pk).update(
+                            quantity_on_hand=F("quantity_on_hand") - item.quantity
+                        )
+                    
+                    # Clear the cart
+                    cart.items.all().delete()
+                    
+                    # Success message and redirect
+                    messages.success(
+                        request,
+                        f"Order placed successfully! Your order number is #{order.pk}."
                     )
-                cart.items.all().delete()
-                messages.success(request, "Order placed successfully.")
-                return redirect("ecommercemodule:order_success", order_id=order.pk)
+                    return redirect("ecommercemodule:order_success", order_id=order.pk)
+                    
+                except Exception as e:
+                    # Handle payment or order creation errors
+                    messages.error(
+                        request,
+                        f"There was an error processing your order: {str(e)}. "
+                        f"Please try again or contact support."
+                    )
+                    # Don't clear the form so user can retry
+        else:
+            # Form validation failed - errors will be displayed inline
+            messages.error(
+                request,
+                "Please correct the errors below and try again."
+            )
     else:
-        form = CheckoutConfirmForm(initial={"confirm": True})
-    cart_total = sum(
-        (item.product.unit_price * item.quantity for item in items), Decimal("0.00")
-    )
-    return render(
-        request,
-        "ecommercemodule/checkout.html",
-        {"items": items, "cart_total": cart_total, "form": form},
-    )
+        # GET request - display empty form
+        # Pre-fill with user profile data if available
+        profile = _get_or_create_profile(request.user)
+        initial_data = {}
+        
+        if request.user.email:
+            initial_data["email"] = request.user.email
+        if request.user.first_name and request.user.last_name:
+            initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
+        elif request.user.username:
+            initial_data["recipient_name"] = request.user.username
+        
+        form = CheckoutForm(initial=initial_data)
+    
+    context = {
+        "form": form,
+        "items": items,
+        "cart_total": cart_total,
+        "item_count": sum(item.quantity for item in items),
+    }
+    
+    return render(request, "ecommercemodule/checkout.html", context)
 
 
 @login_required
@@ -503,6 +656,17 @@ def order_success(request, order_id):
         customer=profile,
     )
     return render(request, "ecommercemodule/order_success.html", {"order": order})
+
+
+@login_required
+def order_detail(request, order_id):
+    profile = _get_or_create_profile(request.user)
+    order = get_object_or_404(
+        Order.objects.prefetch_related("items__product"),
+        pk=order_id,
+        customer=profile,
+    )
+    return render(request, "ecommercemodule/order_detail.html", {"order": order})
 
 
 class AuthFormMixin:

@@ -1,124 +1,639 @@
 {% extends "base.html" %}
 
+{% block title %}Dashboard - Admin Panel{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kpi-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .kpi-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 10px 0;
+    }
+    .kpi-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+    .chart-container {
+        position: relative;
+        background: white;
+        border-radius: 10px;
+        padding: 25px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #2c3e50;
+    }
+    .sales-overview-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+    }
+    .sales-overview-section h2 {
+        font-size: 1.8rem;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    .date-range-badge {
+        background: rgba(255,255,255,0.2);
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<h1>Dashboard</h1>
+<!-- Sales Overview Header -->
+<div class="sales-overview-section">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-graph-up-arrow me-2"></i>Sales and Transaction Overview</h2>
+            <span class="date-range-badge">
+                <i class="bi bi-calendar-range me-1"></i>{{ start_date }} to {{ end_date }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Cards Row -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-3 col-md-6">
+        <div class="kpi-card">
+            <div class="kpi-label"><i class="bi bi-currency-dollar me-1"></i>Total Revenue</div>
+            <div class="kpi-value text-success">
+                $<span id="totalRevenue">{{ total_order_amount|floatformat:0 }}</span>
+            </div>
+            <small class="text-muted">From {{ total_orders_count }} orders</small>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6">
+        <div class="kpi-card">
+            <div class="kpi-label"><i class="bi bi-basket me-1"></i>Total Order Items</div>
+            <div class="kpi-value text-primary">{{ total_order_items }}</div>
+            <small class="text-muted">Line items sold</small>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6">
+        <div class="kpi-card">
+            <div class="kpi-label"><i class="bi bi-box-seam me-1"></i>Order Units</div>
+            <div class="kpi-value text-info">{{ total_order_units }}</div>
+            <small class="text-muted">Total quantity sold</small>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6">
+        <div class="kpi-card">
+            <div class="kpi-label"><i class="bi bi-receipt me-1"></i>Total Orders</div>
+            <div class="kpi-value text-warning">{{ total_orders_count }}</div>
+            <small class="text-muted">Completed transactions</small>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Daily Sales Trend -->
+    <div class="col-lg-8">
+        <div class="chart-container">
+            <h5 class="chart-title"><i class="bi bi-graph-up me-2"></i>Daily Sales & Order Trends</h5>
+            <canvas id="dailySalesChart" height="80"></canvas>
+        </div>
+    </div>
+    
+    <!-- Category Distribution -->
+    <div class="col-lg-4">
+        <div class="chart-container">
+            <h5 class="chart-title"><i class="bi bi-pie-chart me-2"></i>Category Sales</h5>
+            <canvas id="categoryChart" height="200"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Top Products and Daily Stats -->
+<div class="row g-4 mb-4">
+    <!-- Top Selling Products -->
+    <div class="col-lg-6">
+        <div class="chart-container">
+            <h5 class="chart-title"><i class="bi bi-trophy me-2"></i>Top 5 Best Selling Products</h5>
+            <canvas id="topProductsChart" height="150"></canvas>
+        </div>
+    </div>
+    
+    <!-- Daily Statistics Summary -->
+    <div class="col-lg-6">
+        <div class="chart-container">
+            <h5 class="chart-title"><i class="bi bi-bar-chart me-2"></i>Recent Daily Performance</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th class="text-end">Revenue</th>
+                            <th class="text-center">Orders</th>
+                            <th class="text-center">Items</th>
+                            <th class="text-center">Units</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in daily_stats|slice:"-7:" reversed %}
+                        <tr>
+                            <td><small>{{ stat.date|date:"M d, Y" }}</small></td>
+                            <td class="text-end"><strong>${{ stat.amount|floatformat:2 }}</strong></td>
+                            <td class="text-center">{{ stat.orders }}</td>
+                            <td class="text-center">{{ stat.items }}</td>
+                            <td class="text-center">{{ stat.units }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">No data available</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th>Total (Last 7 Days)</th>
+                            <th class="text-end">
+                                ${% widthratio daily_stats|slice:"-7:"|length 1 1 as days_count %}
+                                {% for stat in daily_stats|slice:"-7:" %}
+                                    {% if forloop.first %}{{ stat.amount|floatformat:2 }}{% else %}{{ stat.amount|add:0|floatformat:2 }}{% endif %}
+                                {% endfor %}
+                            </th>
+                            <th class="text-center">
+                                {% with daily_stats|slice:"-7:" as recent_stats %}
+                                    {{ recent_stats|length }}
+                                {% endwith %}
+                            </th>
+                            <th class="text-center">-</th>
+                            <th class="text-center">-</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="my-5">
+
+<!-- Existing Dashboard Content -->
+<div class="page-header">
+    <h2><i class="bi bi-speedometer2 me-2"></i>Inventory & Product Management</h2>
+</div>
 
 <!-- Quick Stats Cards -->
-<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
-    <div style="background-color: #007BFF; color: white; padding: 20px; border-radius: 8px; text-align: center;">
-        <h2 style="margin: 0; font-size: 2.5rem;">{{ total_products }}</h2>
-        <p style="margin: 5px 0 0 0;">Total Products</p>
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center">
+                <h2 class="display-4 fw-bold mb-2">{{ total_products }}</h2>
+                <p class="card-text mb-0"><i class="bi bi-box-seam me-1"></i>Total Products</p>
+            </div>
+        </div>
     </div>
     
-    <div style="background-color: #28a745; color: white; padding: 20px; border-radius: 8px; text-align: center;">
-        <h2 style="margin: 0; font-size: 2.5rem;">{{ active_products }}</h2>
-        <p style="margin: 5px 0 0 0;">Active Products</p>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center">
+                <h2 class="display-4 fw-bold mb-2">{{ active_products }}</h2>
+                <p class="card-text mb-0"><i class="bi bi-check-circle me-1"></i>Active Products</p>
+            </div>
+        </div>
     </div>
     
-    <div style="background-color: #6c757d; color: white; padding: 20px; border-radius: 8px; text-align: center;">
-        <h2 style="margin: 0; font-size: 2.5rem;">{{ inactive_products }}</h2>
-        <p style="margin: 5px 0 0 0;">Inactive Products</p>
+    <div class="col-md-3">
+        <div class="card text-white bg-secondary">
+            <div class="card-body text-center">
+                <h2 class="display-4 fw-bold mb-2">{{ inactive_products }}</h2>
+                <p class="card-text mb-0"><i class="bi bi-x-circle me-1"></i>Inactive Products</p>
+            </div>
+        </div>
     </div>
     
-    <div style="background-color: #dc3545; color: white; padding: 20px; border-radius: 8px; text-align: center;">
-        <h2 style="margin: 0; font-size: 2.5rem;">{{ low_stock_products }}</h2>
-        <p style="margin: 5px 0 0 0;">Low Stock Alerts</p>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body text-center">
+                <h2 class="display-4 fw-bold mb-2">{{ low_stock_products }}</h2>
+                <p class="card-text mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Low Stock Alerts</p>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Quick Actions -->
-<div style="margin-bottom: 30px;">
-    <h2>Quick Actions</h2>
-    <div style="display: flex; gap: 10px;">
-        <a href="{% url 'admin_panel:product_add' %}" class="button" style="background-color:#28a745; color:white; padding:10px 20px; border-radius:4px; text-decoration:none;">
-            + Add New Product
+<div class="content-card mb-4">
+    <h5 class="mb-3"><i class="bi bi-lightning-charge me-2"></i>Quick Actions</h5>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'admin_panel:product_add' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i>Add New Product
         </a>
-        <a href="{% url 'admin_panel:product_list' %}" class="button" style="background-color:#007BFF; color:white; padding:10px 20px; border-radius:4px; text-decoration:none;">
-            View All Products
+        <a href="{% url 'admin_panel:product_list' %}" class="btn btn-primary">
+            <i class="bi bi-list-ul me-1"></i>View All Products
         </a>
-        <a href="{% url 'admin_panel:inventory_list' %}" class="button" style="background-color:#17a2b8; color:white; padding:10px 20px; border-radius:4px; text-decoration:none;">
-            Manage Inventory
+        <a href="{% url 'admin_panel:inventory_list' %}" class="btn btn-info text-white">
+            <i class="bi bi-archive me-1"></i>Manage Inventory
+        </a>
+        <a href="{% url 'admin_panel:customer_list' %}" class="btn btn-outline-primary">
+            <i class="bi bi-people me-1"></i>View Customers
         </a>
     </div>
 </div>
 
 <!-- Two Column Layout for Tables -->
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+<div class="row g-4 mb-4">
     <!-- Low Stock Alerts -->
-    <div style="background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <h2 style="color: #dc3545; margin-top: 0;">⚠️ Low Stock Alerts</h2>
-        {% if low_stock_items %}
-        <table border="1" cellpadding="8">
-            <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Stock</th>
-            </tr>
-            {% for item in low_stock_items %}
-            <tr>
-                <td>{{ item.name }}</td>
-                <td>{{ item.sku }}</td>
-                <td style="color: #dc3545; font-weight: bold;">{{ item.quantity_on_hand }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        <a href="{% url 'admin_panel:product_list' %}" style="display: inline-block; margin-top: 10px; color: #007BFF;">View all low stock items →</a>
-        {% else %}
-        <p style="color: #28a745;">✓ All products have sufficient stock!</p>
-        {% endif %}
+    <div class="col-lg-6">
+        <div class="content-card">
+            <h5 class="text-danger mb-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>Low Stock Alerts</h5>
+            {% if low_stock_items %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th class="text-center">Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in low_stock_items %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td><code>{{ item.sku }}</code></td>
+                            <td class="text-center">
+                                <span class="badge bg-danger">{{ item.quantity_on_hand }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <a href="{% url 'admin_panel:product_list' %}" class="btn btn-sm btn-outline-primary mt-2">
+                View all low stock items <i class="bi bi-arrow-right"></i>
+            </a>
+            {% else %}
+            <div class="alert alert-success mb-0">
+                <i class="bi bi-check-circle me-2"></i>All products have sufficient stock!
+            </div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Recently Added Products -->
-    <div style="background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <h2 style="color: #007BFF; margin-top: 0;">📦 Recently Added Products</h2>
-        {% if recent_products %}
-        <table border="1" cellpadding="8">
-            <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Price</th>
-            </tr>
-            {% for product in recent_products %}
-            <tr>
-                <td>{{ product.name }}</td>
-                <td>{{ product.sku }}</td>
-                <td>${{ product.unit_price }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        {% else %}
-        <p>No products added yet.</p>
-        {% endif %}
+    <div class="col-lg-6">
+        <div class="content-card">
+            <h5 class="text-primary mb-3"><i class="bi bi-clock-history me-2"></i>Recently Added Products</h5>
+            {% if recent_products %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th class="text-end">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in recent_products %}
+                        <tr>
+                            <td>{{ product.name }}</td>
+                            <td><code>{{ product.sku }}</code></td>
+                            <td class="text-end"><strong>${{ product.unit_price }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No products added yet.</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 
 <!-- Top Rated Products -->
-<div style="background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
-    <h2 style="color: #ffc107; margin-top: 0;">⭐ Top Rated Products</h2>
+<div class="content-card">
+    <h5 class="text-warning mb-3"><i class="bi bi-star-fill me-2"></i>Top Rated Products</h5>
     {% if top_rated %}
-    <table border="1" cellpadding="8" style="width: 100%;">
-        <tr>
-            <th>Product</th>
-            <th>SKU</th>
-            <th>Category</th>
-            <th>Rating</th>
-            <th>Stock</th>
-            <th>Price</th>
-        </tr>
-        {% for product in top_rated %}
-        <tr>
-            <td>{{ product.name }}</td>
-            <td>{{ product.sku }}</td>
-            <td>{{ product.category }}</td>
-            <td style="color: #ffc107; font-weight: bold;">{{ product.rating|floatformat:1 }} ⭐</td>
-            <td>{{ product.quantity_on_hand }}</td>
-            <td>${{ product.unit_price }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th class="text-center">Rating</th>
+                    <th class="text-center">Stock</th>
+                    <th class="text-end">Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in top_rated %}
+                <tr>
+                    <td><strong>{{ product.name }}</strong></td>
+                    <td><code>{{ product.sku }}</code></td>
+                    <td>{{ product.category.name|default:"-" }}</td>
+                    <td class="text-center">
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-star-fill"></i> {{ product.rating|floatformat:1 }}
+                        </span>
+                    </td>
+                    <td class="text-center">{{ product.quantity_on_hand }}</td>
+                    <td class="text-end"><strong>${{ product.unit_price }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p>No rated products yet.</p>
+    <p class="text-muted mb-0">No rated products yet.</p>
     {% endif %}
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Chart color palette
+const colors = {
+    primary: 'rgba(102, 126, 234, 0.8)',
+    secondary: 'rgba(118, 75, 162, 0.8)',
+    success: 'rgba(40, 167, 69, 0.8)',
+    info: 'rgba(23, 162, 184, 0.8)',
+    warning: 'rgba(255, 193, 7, 0.8)',
+    danger: 'rgba(220, 53, 69, 0.8)',
+    purple: 'rgba(153, 102, 255, 0.8)',
+    orange: 'rgba(255, 159, 64, 0.8)',
+};
+
+// Format currency
+function formatCurrency(value) {
+    if (value >= 1000) {
+        return '$' + (value / 1000).toFixed(1) + 'K';
+    }
+    return '$' + value.toFixed(2);
+}
+
+// Daily Sales Chart Data
+const dailyStatsData = {{ daily_stats_json|safe }};
+const dailyLabels = dailyStatsData.map(d => {
+    const date = new Date(d.date);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+});
+const dailyRevenue = dailyStatsData.map(d => d.amount);
+const dailyOrders = dailyStatsData.map(d => d.orders);
+
+// Daily Sales & Orders Chart (Combo: Bar + Line)
+const dailySalesCtx = document.getElementById('dailySalesChart').getContext('2d');
+new Chart(dailySalesCtx, {
+    type: 'bar',
+    data: {
+        labels: dailyLabels,
+        datasets: [
+            {
+                label: 'Revenue',
+                data: dailyRevenue,
+                backgroundColor: colors.primary,
+                borderColor: colors.primary,
+                borderWidth: 1,
+                yAxisID: 'y',
+                type: 'bar'
+            },
+            {
+                label: 'Orders',
+                data: dailyOrders,
+                backgroundColor: colors.warning,
+                borderColor: colors.warning,
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4,
+                yAxisID: 'y1',
+                type: 'line',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        plugins: {
+            legend: {
+                display: true,
+                position: 'top',
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        let label = context.dataset.label || '';
+                        if (label) {
+                            label += ': ';
+                        }
+                        if (context.dataset.yAxisID === 'y') {
+                            label += '$' + context.parsed.y.toFixed(2);
+                        } else {
+                            label += context.parsed.y;
+                        }
+                        return label;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: {
+                    display: true,
+                    text: 'Revenue ($)'
+                },
+                ticks: {
+                    callback: function(value) {
+                        return formatCurrency(value);
+                    }
+                }
+            },
+            y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: {
+                    display: true,
+                    text: 'Number of Orders'
+                },
+                grid: {
+                    drawOnChartArea: false,
+                },
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+
+// Category Chart Data
+const categoryData = {{ category_chart_json|safe }};
+const categoryLabels = categoryData.map(c => c.name);
+const categoryRevenue = categoryData.map(c => c.revenue);
+
+// Category Sales Chart (Doughnut)
+const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+new Chart(categoryCtx, {
+    type: 'doughnut',
+    data: {
+        labels: categoryLabels,
+        datasets: [{
+            data: categoryRevenue,
+            backgroundColor: [
+                colors.primary,
+                colors.success,
+                colors.warning,
+                colors.danger,
+                colors.info,
+                colors.purple,
+                colors.orange,
+                colors.secondary
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'right',
+                labels: {
+                    padding: 10,
+                    font: {
+                        size: 11
+                    }
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = ((value / total) * 100).toFixed(1);
+                        return label + ': $' + value.toFixed(2) + ' (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Top Products Chart Data
+const topProductsData = {{ top_products_json|safe }};
+const productLabels = topProductsData.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name);
+const productQty = topProductsData.map(p => p.qty);
+
+// Top Products Chart (Horizontal Bar)
+const topProductsCtx = document.getElementById('topProductsChart').getContext('2d');
+new Chart(topProductsCtx, {
+    type: 'bar',
+    data: {
+        labels: productLabels,
+        datasets: [{
+            label: 'Units Sold',
+            data: productQty,
+            backgroundColor: [
+                colors.success,
+                colors.primary,
+                colors.info,
+                colors.warning,
+                colors.secondary
+            ],
+            borderColor: [
+                colors.success,
+                colors.primary,
+                colors.info,
+                colors.warning,
+                colors.secondary
+            ],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'Units Sold: ' + context.parsed.x;
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                },
+                title: {
+                    display: true,
+                    text: 'Units Sold'
+                }
+            }
+        }
+    }
+});
+
+// Animate revenue number
+const revenueElement = document.getElementById('totalRevenue');
+const targetRevenue = {{ total_order_amount }};
+let currentRevenue = 0;
+const increment = targetRevenue / 50;
+const timer = setInterval(() => {
+    currentRevenue += increment;
+    if (currentRevenue >= targetRevenue) {
+        currentRevenue = targetRevenue;
+        clearInterval(timer);
+    }
+    if (targetRevenue >= 1000) {
+        revenueElement.textContent = (currentRevenue / 1000).toFixed(1) + 'K';
+    } else {
+        revenueElement.textContent = currentRevenue.toFixed(0);
+    }
+}, 20);
+</script>
 {% endblock %}

@@ -33,4 +33,10 @@ urlpatterns = [
     path("incoming-stock/", views.incoming_stock, name="incoming_stock"),
     path("inventory-history/", views.inventory_history, name="inventory_history"),
     
+    # API endpoint for dynamic subcategory loading
+    path("api/subcategories/<int:category_id>/", views.get_subcategories, name="get_subcategories"),
+
+    # Orders: update status
+    path("orders/<int:pk>/status/", views.order_update_status, name="order_update_status"),
+    
 ]

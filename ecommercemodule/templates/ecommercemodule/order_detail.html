@@ -1,0 +1,248 @@
+{% extends "ecommercemodule/base.html" %}
+{% load static %}
+
+{% block title %}Order #{{ order.id }} - AuroraMart{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Order #{{ order.id }}</h2>
+            <p class="text-muted mb-0">
+                <i class="bi bi-calendar me-1"></i>
+                Placed on {{ order.created_at|date:"F d, Y" }} at {{ order.created_at|date:"g:i A" }}
+            </p>
+        </div>
+        <a href="{% url 'ecommercemodule:order_history' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Orders
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Order Details Card -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-receipt me-2"></i>Order Details
+                        </h5>
+                        <div>
+                            {% if order.status == 'PAID' %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle me-1"></i>Paid
+                                </span>
+                            {% elif order.status == 'PENDING' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-clock me-1"></i>Pending
+                                </span>
+                            {% elif order.status == 'CANCELLED' %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle me-1"></i>Cancelled
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Line Items Table -->
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Product</th>
+                                    <th class="text-center" style="width: 80px;">Qty</th>
+                                    <th class="text-end" style="width: 100px;">Unit Price</th>
+                                    <th class="text-end" style="width: 120px;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.items.all %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <!-- Product Image -->
+                                            <div style="width: 50px; height: 50px; flex-shrink: 0;">
+                                                {% if item.product.get_image_url %}
+                                                    <img src="{{ item.product.get_image_url }}" alt="{{ item.product.name }}" 
+                                                         class="rounded" style="width: 100%; height: 100%; object-fit: cover;">
+                                                {% else %}
+                                                    <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 100%; height: 100%;">
+                                                        <i class="bi bi-box text-muted small"></i>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <!-- Product Info -->
+                                            <div>
+                                                <div class="fw-semibold">{{ item.product.name }}</div>
+                                                {% if item.product.sku %}
+                                                    <small class="text-muted">SKU: {{ item.product.sku }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark">{{ item.quantity }}</span>
+                                    </td>
+                                    <td class="text-end">${{ item.unit_price|floatformat:2 }}</td>
+                                    <td class="text-end fw-semibold">${{ item.line_total|floatformat:2 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="border-top">
+                                <tr>
+                                    <td colspan="3" class="text-end fw-bold">Order Total:</td>
+                                    <td class="text-end">
+                                        <span class="fs-5 text-success fw-bold">${{ order.total_amount|floatformat:2 }}</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Timeline (Optional Enhancement) -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>Order Timeline
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <div class="fw-semibold">Order Placed</div>
+                                <div class="text-muted small">{{ order.created_at|date:"F d, Y g:i A" }}</div>
+                            </div>
+                        </div>
+                        {% if order.status == 'PAID' or order.status == 'CANCELLED' %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if order.status == 'PAID' %}bg-success{% else %}bg-danger{% endif %}"></div>
+                            <div class="timeline-content">
+                                <div class="fw-semibold">{{ order.get_status_display }}</div>
+                                <div class="text-muted small">Status updated</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Customer Info Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                        <i class="bi bi-person me-2"></i>Customer Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-muted small">Customer</div>
+                    <div class="fw-semibold mb-3">
+                        {% if order.customer.user %}
+                            {{ order.customer.user.username }}
+                        {% else %}
+                            Customer #{{ order.customer.id }}
+                        {% endif %}
+                    </div>
+                    {% if order.customer.user.email %}
+                        <div class="text-muted small">Email</div>
+                        <div class="mb-3">{{ order.customer.user.email }}</div>
+                    {% endif %}
+                    <div class="text-muted small">Customer ID</div>
+                    <div>{{ order.customer.id }}</div>
+                </div>
+            </div>
+
+            <!-- Order Summary Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                        <i class="bi bi-calculator me-2"></i>Order Summary
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Subtotal</span>
+                        <span>${{ order.total_amount|floatformat:2 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Delivery</span>
+                        <span class="text-success">FREE</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold">Total</span>
+                        <span class="fw-bold text-success">${{ order.total_amount|floatformat:2 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-grid gap-2">
+                <a href="{% url 'ecommercemodule:order_history' %}" class="btn btn-primary">
+                    <i class="bi bi-clock-history me-2"></i>View All Orders
+                </a>
+                <a href="{% url 'ecommercemodule:home' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-house-door me-2"></i>Back to Home
+                </a>
+            </div>
+
+            <!-- Help Section -->
+            <div class="alert alert-info mt-3">
+                <small>
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Need Help?</strong><br>
+                    Contact our support team for any order-related questions.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Timeline Styles */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -30px;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px currentColor;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: -25px;
+    top: 12px;
+    width: 2px;
+    height: calc(100% - 12px);
+    background-color: #dee2e6;
+}
+</style>
+{% endblock %}

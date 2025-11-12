@@ -69,6 +69,27 @@ class Product(models.Model):
         verbose_name="Product Rating"
     )
     is_active = models.BooleanField(default=True)
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="Image URL",
+        help_text="External image URL (e.g., from Google Images)"
+    )
+    image = models.ImageField(
+        upload_to='products/',
+        blank=True,
+        null=True,
+        verbose_name="Product Image",
+        help_text="Upload a product image file"
+    )
+    
+    @property
+    def get_image_url(self):
+        """Return image URL - prioritize uploaded image over external URL"""
+        if self.image:
+            return self.image.url
+        return self.image_url or ''
 
     class Meta:
         ordering = ["name"]

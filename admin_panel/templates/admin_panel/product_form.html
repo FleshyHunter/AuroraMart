@@ -8,13 +8,15 @@
             {{ form.instance.pk|yesno:"Edit Product Form,Add Product Form" }}
         </h2>
 
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
 
             <div style="display:grid; grid-template-columns: 200px 1fr; gap:15px 20px; align-items:center;">
                 {% for field in form %}
                     {% if field.is_hidden %}
                         {{ field }}
+                    {% elif field.name == 'image' %}
+                        <!-- Skip image fields in main loop, we'll add them in a special section -->
                     {% else %}
                         <label for="{{ field.id_for_label }}" style="font-weight:500; text-align:right; padding-right:10px;">
                             {{ field.label }}{% if field.field.required %} *{% endif %}
@@ -29,6 +31,44 @@
                 {% endfor %}
             </div>
 
+            <!-- Product Images Section -->
+            <div style="margin-top:30px; padding:20px; background-color:white; border-radius:8px; border:1px solid #dee2e6;">
+                <h4 style="margin-bottom:20px; color:#495057;">
+                    <i class="bi bi-image"></i> Product Images
+                </h4>
+                
+                {% if form.instance.pk and form.instance.get_image_url %}
+                <div style="margin-bottom:20px; text-align:center;">
+                    <p style="font-weight:500; color:#6c757d; margin-bottom:10px;">Current Image:</p>
+                    <img src="{{ form.instance.get_image_url }}" 
+                         alt="{{ form.instance.name }}"
+                         style="max-width:300px; max-height:300px; border:2px solid #dee2e6; border-radius:8px; padding:5px; background-color:white;">
+                    {% if form.instance.image %}
+                        <p style="margin-top:8px; color:#28a745; font-size:0.9em;">
+                            <i class="bi bi-check-circle-fill"></i> Uploaded Image
+                        </p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div style="display:grid; grid-template-columns: 200px 1fr; gap:15px 20px; align-items:start;">
+                    {% if form.image %}
+                    <label for="{{ form.image.id_for_label }}" style="font-weight:500; text-align:right; padding-right:10px;">
+                        {{ form.image.label }}
+                    </label>
+                    <div style="display:flex; flex-direction:column;">
+                        {{ form.image }}
+                        <small style="color:#6c757d; margin-top:5px;">
+                            Upload a product image (JPG, JPEG, PNG, GIF, or WebP). Only image files are allowed.
+                        </small>
+                        {% if form.image.errors %}
+                            <span style="color:red; font-size:0.85em;">{{ form.image.errors|striptags }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
             <div style="margin-top:30px; text-align:center; display:flex; gap:10px; justify-content:center;">
                 <button type="submit" style="padding:10px 25px; background-color:#007BFF; color:white; border:none; border-radius:5px; font-size:1em; cursor:pointer;">
                     Save
@@ -40,4 +80,77 @@
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categorySelect = document.getElementById('id_category');
+    const subcategorySelect = document.getElementById('id_subcategory');
+    
+    if (!categorySelect || !subcategorySelect) {
+        return;
+    }
+    
+    // Store the initial subcategory value (for edit mode)
+    const initialSubcategoryValue = subcategorySelect.value;
+    
+    // Function to load subcategories based on selected category
+    function loadSubcategories(categoryId, selectValue = null) {
+        if (!categoryId) {
+            // Clear subcategories if no category selected
+            subcategorySelect.innerHTML = '<option value="">---------</option>';
+            subcategorySelect.disabled = true;
+            return;
+        }
+        
+        // Show loading state
+        subcategorySelect.innerHTML = '<option value="">Loading...</option>';
+        subcategorySelect.disabled = true;
+        
+    // Fetch subcategories from API (note: app prefix uses underscore: admin_panel)
+    fetch(`/admin_panel/api/subcategories/${categoryId}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Clear and populate subcategories
+                subcategorySelect.innerHTML = '<option value="">---------</option>';
+                
+                data.subcategories.forEach(sub => {
+                    const option = document.createElement('option');
+                    option.value = sub.id;
+                    option.textContent = sub.display_name;
+                    subcategorySelect.appendChild(option);
+                });
+                
+                // Re-select the value if provided (for edit mode)
+                if (selectValue) {
+                    subcategorySelect.value = selectValue;
+                }
+                
+                subcategorySelect.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error loading subcategories:', error);
+                subcategorySelect.innerHTML = '<option value="">Error loading subcategories</option>';
+                subcategorySelect.disabled = true;
+            });
+    }
+    
+    // Listen for category changes
+    categorySelect.addEventListener('change', function() {
+        const categoryId = this.value;
+        loadSubcategories(categoryId);
+    });
+    
+    // On page load, if there's a category selected, load its subcategories
+    if (categorySelect.value) {
+        loadSubcategories(categorySelect.value, initialSubcategoryValue);
+    } else {
+        subcategorySelect.disabled = true;
+    }
+});
+</script>
 {% endblock %}

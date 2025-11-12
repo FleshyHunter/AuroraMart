@@ -1,115 +1,353 @@
 {% extends "base.html" %}
 
+{% block title %}Products - Admin Panel{% endblock %}
+
 {% block content %}
-<h1>Products</h1>
-
-<!-- Add Product Button -->
-<a href="{% url 'admin_panel:product_add' %}" class="button"
-    style="background-color:#28a745; color:white; padding:8px 12px; border-radius:4px; text-decoration:none;">Add
-    Product</a>
-
-<!-- Filters and Search -->
-<form method="get" style="margin-top:15px; margin-bottom:15px;">
-    <!-- Search Section -->
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-        <input type="text" name="q" placeholder="Search product..." value="{{ search_query }}" style="width: 200px;">
-        <input type="text" name="sku" placeholder="Search SKU..." value="{{ sku_query }}" style="width: 200px;">
-    </div>
-
-    <!-- Filter and Sort Section -->
-    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-        <!-- Filter By -->
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <strong>Filter:</strong>
-            <select name="category">
-                <option value="">All Categories</option>
-                {% for cat in categories %}
-                <option value="{{ cat }}" {% if cat == category_filter %}selected{% endif %}>{{ cat }}</option>
-                {% endfor %}
-            </select>
-
-            <select name="subcategory">
-                <option value="">All Subcategories</option>
-                {% for sub in subcategories %}
-                <option value="{{ sub }}" {% if sub == subcategory_filter %}selected{% endif %}>{{ sub }}</option>
-                {% endfor %}
-            </select>
-
-            <select name="active">
-                <option value="">Status</option>
-                <option value="active" {% if active_filter == 'active' %}selected{% endif %}>Active</option>
-                <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Inactive</option>
-            </select>
-        </div>
-
-        <span style="color: #ccc;">|</span>
-
-        <!-- Sort By -->
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <strong>Sort:</strong>
-            <select name="price_order">
-                <option value="">Price</option>
-                <option value="asc" {% if price_order == 'asc' %}selected{% endif %}>Low to High</option>
-                <option value="desc" {% if price_order == 'desc' %}selected{% endif %}>High to Low</option>
-            </select>
-
-            <select name="rating_order">
-                <option value="">Rating</option>
-                <option value="asc" {% if rating_order == 'asc' %}selected{% endif %}>Low to High</option>
-                <option value="desc" {% if rating_order == 'desc' %}selected{% endif %}>High to Low</option>
-            </select>
-
-            <select name="stock_order">
-                <option value="">Stock</option>
-                <option value="asc" {% if stock_order == 'asc' %}selected{% endif %}>Low to High</option>
-                <option value="desc" {% if stock_order == 'desc' %}selected{% endif %}>High to Low</option>
-            </select>
-        </div>
-
-        <button type="submit" style="padding:6px 20px; background-color:#007BFF; color:white; border:none; border-radius:4px; cursor:pointer;">Apply</button>
-    </div>
-</form>
-
-<!-- Product Table -->
-<table border="1" cellpadding="8">
-    <tr>
-        <th>Name</th>
-        <th>SKU</th>
-        <th>Price</th>
-        <th>Category</th>
-        <th>Subcategory</th>
-        <th>Stock</th>
-        <th>Rating</th>
-        <th>Active</th>
-        <th>Actions</th>
-    </tr>
-    {% for p in page_obj %}
-    <tr>
-        <td>{{ p.name }}</td>
-        <td>{{ p.sku }}</td>
-        <td>{{ p.unit_price }}</td>
-        <td>{{ p.category }}</td>
-        <td>{{ p.subcategory }}</td>
-        <td>{{ p.quantity_on_hand }}</td>
-        <td>{{ p.rating }}</td>
-        <td>{{ p.is_active }}</td>
-        <td>
-            <a href="{% url 'admin_panel:product_edit' p.pk %}?return_url={{ request.get_full_path|urlencode }}">Edit</a>
-            <a href="{% url 'admin_panel:product_delete' p.pk %}">Delete</a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-
-<!-- Pagination Links -->
-<div style="margin-top:15px;">
-    {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
-    {% endif %}
-    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-    {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}">Next</a>
-    {% endif %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1><i class="bi bi-box-seam me-2"></i>Products</h1>
+    <a href="{% url 'admin_panel:product_add' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle me-1"></i>Add Product
+    </a>
 </div>
 
+<!-- Filters and Search Card -->
+<div class="content-card filter-section">
+    <form method="get" id="filterForm">
+        <div class="row g-3">
+            <!-- Search Section -->
+            <div class="col-md-6 col-lg-3">
+                <label for="searchProduct" class="form-label small text-muted">Search Product</label>
+                <input type="text" class="form-control" id="searchProduct" name="q" 
+                       placeholder="Product name..." value="{{ search_query }}">
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <label for="searchSKU" class="form-label small text-muted">Search SKU</label>
+                <input type="text" class="form-control" id="searchSKU" name="sku" 
+                       placeholder="SKU code..." value="{{ sku_query }}">
+            </div>
+
+            <!-- Category Filter -->
+            <div class="col-md-6 col-lg-3">
+                <label for="categoryFilter" class="form-label small text-muted">Category</label>
+                <select class="form-select" id="categoryFilter" name="category">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if cat == category_filter %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Subcategory Filter -->
+            <div class="col-md-6 col-lg-3">
+                <label for="subcategoryFilter" class="form-label small text-muted">Subcategory</label>
+                <select class="form-select" id="subcategoryFilter" name="subcategory">
+                    <option value="">All Subcategories</option>
+                    {% for sub in subcategories %}
+                    <option value="{{ sub.name }}" 
+                            data-category="{{ sub.category.name }}"
+                            {% if sub.name == subcategory_filter %}selected{% endif %}>
+                        {{ sub.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="col-md-6 col-lg-3">
+                <label for="activeFilter" class="form-label small text-muted">Status</label>
+                <select class="form-select" id="activeFilter" name="active">
+                    <option value="">All Status</option>
+                    <option value="active" {% if active_filter == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+
+            <!-- Filter Buttons -->
+            <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-funnel me-1"></i>Apply Filters
+                </button>
+                <a href="{% url 'admin_panel:product_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-1"></i>Clear Filters
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Results Info -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="text-muted">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} products
+    </div>
+</div>
+
+<!-- Product Table -->
+<div class="content-card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width: 80px;">Image</th>
+                    <th>
+                        Name
+                        <a href="?name_order={% if name_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if name_order == 'asc' %}
+                                <i class="bi bi-sort-alpha-down"></i>
+                            {% elif name_order == 'desc' %}
+                                <i class="bi bi-sort-alpha-up"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>SKU</th>
+                    <th>
+                        Price
+                        <a href="?price_order={% if price_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if price_order == 'asc' %}
+                                <i class="bi bi-sort-numeric-down"></i>
+                            {% elif price_order == 'desc' %}
+                                <i class="bi bi-sort-numeric-up"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        Category
+                        <a href="?category_order={% if category_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if category_order == 'asc' %}
+                                <i class="bi bi-sort-alpha-down"></i>
+                            {% elif category_order == 'desc' %}
+                                <i class="bi bi-sort-alpha-up"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        Subcategory
+                        <a href="?subcategory_order={% if subcategory_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if subcategory_order == 'asc' %}
+                                <i class="bi bi-sort-alpha-down"></i>
+                            {% elif subcategory_order == 'desc' %}
+                                <i class="bi bi-sort-alpha-up"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th class="text-center">
+                        Stock
+                        <a href="?stock_order={% if stock_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if stock_order == 'asc' %}
+                                <i class="bi bi-sort-numeric-down"></i>
+                            {% elif stock_order == 'desc' %}
+                                <i class="bi bi-sort-numeric-up"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th class="text-center">
+                        Rating
+                        <a href="?rating_order={% if rating_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if rating_order == 'asc' %}
+                                <i class="bi bi-sort-numeric-down"></i>
+                            {% elif rating_order == 'desc' %}
+                                <i class="bi bi-sort-numeric-up"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th class="text-center">
+                        Status
+                        <a href="?status_order={% if status_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
+                           class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            {% if status_order == 'asc' %}
+                                <i class="bi bi-toggle-on"></i>
+                            {% elif status_order == 'desc' %}
+                                <i class="bi bi-toggle-off"></i>
+                            {% else %}
+                                <i class="bi bi-arrow-down-up"></i>
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in page_obj %}
+                <tr>
+                    <td>
+                        {% if p.get_image_url %}
+                            <img src="{{ p.get_image_url }}" 
+                                 alt="{{ p.name }}"
+                                 style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 2px solid #dee2e6;"
+                                 title="{{ p.name }}">
+                        {% else %}
+                            <div style="width: 60px; height: 60px; background-color: #e9ecef; border-radius: 6px; border: 2px solid #dee2e6; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-image text-muted" style="font-size: 1.5rem;"></i>
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ p.name }}</strong>
+                    </td>
+                    <td><code>{{ p.sku }}</code></td>
+                    <td><strong>${{ p.unit_price }}</strong></td>
+                    <td>{{ p.category.name|default:"-" }}</td>
+                    <td>{{ p.subcategory.name|default:"-" }}</td>
+                    <td class="text-center">
+                        <span class="badge {% if p.quantity_on_hand < 10 %}bg-danger{% elif p.quantity_on_hand < 50 %}bg-warning{% else %}bg-success{% endif %}">
+                            {{ p.quantity_on_hand }}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        {% if p.rating %}
+                            <span class="badge bg-info">
+                                <i class="bi bi-star-fill"></i> {{ p.rating }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if p.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'admin_panel:product_edit' p.pk %}?{{ full_query_params }}" 
+                               class="btn btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <a href="{% url 'admin_panel:product_delete' p.pk %}" 
+                               class="btn btn-outline-danger" title="Delete"
+                               onclick="return confirm('Are you sure you want to delete {{ p.name }}?');">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                        No products found matching your criteria.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.paginator.num_pages > 1 %}
+<nav aria-label="Product pagination" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    <i class="bi bi-chevron-double-left"></i> First
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    <i class="bi bi-chevron-left"></i> Previous
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-double-left"></i> First</span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-left"></i> Previous</span>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    Next <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    Last <i class="bi bi-chevron-double-right"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Next <i class="bi bi-chevron-right"></i></span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Last <i class="bi bi-chevron-double-right"></i></span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Dynamic subcategory filtering based on selected category
+document.addEventListener('DOMContentLoaded', function() {
+    const categorySelect = document.getElementById('categoryFilter');
+    const subcategorySelect = document.getElementById('subcategoryFilter');
+    
+    // Store all subcategory options on page load
+    const allSubcategoryOptions = Array.from(subcategorySelect.options);
+    
+    function filterSubcategories() {
+        const selectedCategory = categorySelect.value;
+        
+        // Clear current options except "All Subcategories"
+        subcategorySelect.innerHTML = '<option value="">All Subcategories</option>';
+        
+        // If no category selected, show all subcategories
+        if (!selectedCategory) {
+            allSubcategoryOptions.forEach(option => {
+                if (option.value !== '') {
+                    subcategorySelect.appendChild(option.cloneNode(true));
+                }
+            });
+            return;
+        }
+        
+        // Filter and add matching subcategories
+        allSubcategoryOptions.forEach(option => {
+            if (option.value !== '' && option.dataset.category === selectedCategory) {
+                subcategorySelect.appendChild(option.cloneNode(true));
+            }
+        });
+    }
+    
+    // Attach event listener
+    categorySelect.addEventListener('change', filterSubcategories);
+    
+    // Run on page load to maintain correct state
+    filterSubcategories();
+});
+</script>
 {% endblock %}

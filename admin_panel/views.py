@@ -1,31 +1,156 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from auroramart.models import Product, Customer
-from .models import Transaction, Inventory, InventoryItem, IncomingStock, InventoryHistory
+from auroramart.models import Product, Customer, Category, SubCategory
+from .models import Transaction, TransactionItem, Inventory, InventoryItem, IncomingStock, InventoryHistory
+from ecommercemodule.models import Order, OrderItem
 from .forms import ProductForm, CustomerForm
 from django.core.paginator import Paginator
-from django.db.models import Case, When, Value, IntegerField, Q, Sum
+from django.db.models import Case, When, Value, IntegerField, Q, Sum, Count, F
 from django.urls import reverse
 from django.contrib import messages
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.http import JsonResponse
+from collections import defaultdict
+from decimal import Decimal
+import json
 
 def dashboard(request):
-    # Get statistics
+    # Get date range from query params (default to last 30 days)
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=30)
+    
+    # === SALES ANALYTICS ===
+    # Combine Orders (ecommerce) and Transactions (admin panel)
+    orders = Order.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+    transactions = Transaction.objects.filter(transaction_date__gte=start_date, transaction_date__lte=end_date)
+    
+    # Calculate KPIs
+    order_total_amount = orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
+    transaction_total_amount = transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
+    total_order_amount = order_total_amount + transaction_total_amount
+    
+    # Total order items (count of line items)
+    order_items_count = OrderItem.objects.filter(order__in=orders).count()
+    transaction_items_count = TransactionItem.objects.filter(transaction__in=transactions).count()
+    total_order_items = order_items_count + transaction_items_count
+    
+    # Total order units (sum of quantities)
+    order_units = OrderItem.objects.filter(order__in=orders).aggregate(total=Sum('quantity'))['total'] or 0
+    transaction_units = TransactionItem.objects.filter(transaction__in=transactions).aggregate(total=Sum('quantity'))['total'] or 0
+    total_order_units = order_units + transaction_units
+    
+    # Total unique orders/transactions
+    total_orders_count = orders.count() + transactions.count()
+    
+    # === DAILY STATISTICS ===
+    daily_stats = []
+    current_date = start_date.date()
+    while current_date <= end_date.date():
+        next_date = current_date + timedelta(days=1)
+        
+        day_orders = orders.filter(created_at__date=current_date)
+        day_transactions = transactions.filter(transaction_date__date=current_date)
+        
+        day_amount = (day_orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')) + \
+                     (day_transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
+        
+        day_items = OrderItem.objects.filter(order__in=day_orders).count() + \
+                    TransactionItem.objects.filter(transaction__in=day_transactions).count()
+        
+        day_units = (OrderItem.objects.filter(order__in=day_orders).aggregate(total=Sum('quantity'))['total'] or 0) + \
+                    (TransactionItem.objects.filter(transaction__in=day_transactions).aggregate(total=Sum('quantity'))['total'] or 0)
+        
+        day_orders_count = day_orders.count() + day_transactions.count()
+        
+        daily_stats.append({
+            'date': current_date.strftime('%Y-%m-%d'),  # Convert date to string for JSON serialization
+            'amount': float(day_amount),
+            'items': day_items,
+            'units': day_units,
+            'orders': day_orders_count,
+        })
+        
+        current_date = next_date
+    
+    # === TOP SELLING PRODUCTS ===
+    # Aggregate from both OrderItem and TransactionItem
+    order_product_sales = OrderItem.objects.filter(order__in=orders).values('product').annotate(
+        total_qty=Sum('quantity'),
+        total_revenue=Sum(F('quantity') * F('unit_price'))
+    )
+    transaction_product_sales = TransactionItem.objects.filter(transaction__in=transactions).values('product').annotate(
+        total_qty=Sum('quantity'),
+        total_revenue=Sum(F('quantity') * F('price'))
+    )
+    
+    # Combine product sales
+    product_sales_dict = defaultdict(lambda: {'qty': 0, 'revenue': Decimal('0')})
+    for item in order_product_sales:
+        product_id = item['product']
+        product_sales_dict[product_id]['qty'] += item['total_qty']
+        product_sales_dict[product_id]['revenue'] += item['total_revenue']
+    
+    for item in transaction_product_sales:
+        product_id = item['product']
+        product_sales_dict[product_id]['qty'] += item['total_qty']
+        product_sales_dict[product_id]['revenue'] += item['total_revenue']
+    
+    # Get top 5 products by quantity
+    top_products_data = sorted(product_sales_dict.items(), key=lambda x: x[1]['qty'], reverse=True)[:5]
+    top_products = []
+    for product_id, data in top_products_data:
+        try:
+            product = Product.objects.get(pk=product_id)
+            top_products.append({
+                'name': product.name,
+                'qty': data['qty'],
+                'revenue': float(data['revenue']),
+            })
+        except Product.DoesNotExist:
+            continue
+    
+    # === CATEGORY SALES ===
+    # Get category breakdown
+    category_sales = defaultdict(lambda: {'qty': 0, 'revenue': Decimal('0')})
+    
+    for item in OrderItem.objects.filter(order__in=orders).select_related('product__category'):
+        if item.product.category:
+            category_sales[item.product.category.name]['qty'] += item.quantity
+            category_sales[item.product.category.name]['revenue'] += item.quantity * item.unit_price
+    
+    for item in TransactionItem.objects.filter(transaction__in=transactions).select_related('product__category'):
+        if item.product.category:
+            category_sales[item.product.category.name]['qty'] += item.quantity
+            category_sales[item.product.category.name]['revenue'] += item.quantity * item.price
+    
+    category_chart_data = [{'name': k, 'qty': v['qty'], 'revenue': float(v['revenue'])} 
+                           for k, v in sorted(category_sales.items(), key=lambda x: x[1]['revenue'], reverse=True)]
+    
+    # === EXISTING STATS (keep at bottom) ===
     total_products = Product.objects.count()
     active_products = Product.objects.filter(is_active=True).count()
     inactive_products = Product.objects.filter(is_active=False).count()
     low_stock_products = Product.objects.filter(quantity_on_hand__lt=10).count()
-    
-    # Get low stock items (for alerts)
     low_stock_items = Product.objects.filter(quantity_on_hand__lt=10).order_by('quantity_on_hand')[:5]
-    
-    # Get recently added products
     recent_products = Product.objects.order_by('-id')[:5]
-    
-    # Get top rated products
     top_rated = Product.objects.filter(rating__isnull=False).order_by('-rating')[:5]
     
     context = {
+        # Sales analytics
+        'total_order_amount': float(total_order_amount),
+        'total_order_items': total_order_items,
+        'total_order_units': total_order_units,
+        'total_orders_count': total_orders_count,
+        'daily_stats': daily_stats,
+        'daily_stats_json': json.dumps(daily_stats),
+        'top_products': top_products,
+        'top_products_json': json.dumps(top_products),
+        'category_chart_data': category_chart_data,
+        'category_chart_json': json.dumps(category_chart_data),
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+        
+        # Existing stats
         'total_products': total_products,
         'active_products': active_products,
         'inactive_products': inactive_products,
@@ -38,7 +163,10 @@ def dashboard(request):
 
 # Product
 def product_list(request):
-    products = Product.objects.all()
+    from auroramart.models import SubCategory
+    from urllib.parse import urlencode
+    
+    products = Product.objects.select_related('category', 'subcategory').all()
 
     # --- Filters ---
     category_filter = request.GET.get('category', '')
@@ -49,6 +177,10 @@ def product_list(request):
     price_order = request.GET.get('price_order', '')
     rating_order = request.GET.get('rating_order', '')
     stock_order = request.GET.get('stock_order', '')
+    name_order = request.GET.get('name_order', '')
+    category_order = request.GET.get('category_order', '')
+    subcategory_order = request.GET.get('subcategory_order', '')
+    status_order = request.GET.get('status_order', '')
 
     if category_filter:
         products = products.filter(category__name=category_filter)
@@ -70,19 +202,38 @@ def product_list(request):
             # If no exact match, show partial matches
             products = products.filter(sku__icontains=sku_query)
     
-    # --- Sorting (priority: price > rating > stock > default) ---
-    if price_order == 'asc':
+    # --- Sorting ---
+    # Priority: name > price > category > subcategory > stock > rating > status > default
+    if name_order == 'asc':
+        products = products.order_by('name')
+    elif name_order == 'desc':
+        products = products.order_by('-name')
+    elif price_order == 'asc':
         products = products.order_by('unit_price')
     elif price_order == 'desc':
         products = products.order_by('-unit_price')
-    elif rating_order == 'asc':
-        products = products.order_by('rating')
-    elif rating_order == 'desc':
-        products = products.order_by('-rating')
+    elif category_order == 'asc':
+        products = products.order_by('category__name', 'subcategory__name', 'name')
+    elif category_order == 'desc':
+        products = products.order_by('-category__name', '-subcategory__name', 'name')
+    elif subcategory_order == 'asc':
+        products = products.order_by('subcategory__name', 'name')
+    elif subcategory_order == 'desc':
+        products = products.order_by('-subcategory__name', 'name')
     elif stock_order == 'asc':
         products = products.order_by('quantity_on_hand')
     elif stock_order == 'desc':
         products = products.order_by('-quantity_on_hand')
+    elif rating_order == 'asc':
+        products = products.order_by('rating')
+    elif rating_order == 'desc':
+        products = products.order_by('-rating')
+    elif status_order == 'asc':
+        # Asc: show Active first
+        products = products.order_by('-is_active', 'name')
+    elif status_order == 'desc':
+        # Desc: show Inactive first
+        products = products.order_by('is_active', 'name')
     else:
         # Default: sort alphabetically by name, or by SKU if searching SKU
         if sku_query:
@@ -96,16 +247,48 @@ def product_list(request):
         .distinct()
         .order_by('category__name')
     )
-    subcategories = (
-        Product.objects.values_list('subcategory__name', flat=True)
-        .distinct()
-        .order_by('subcategory__name')
-    )
+    
+    # Get subcategories with their parent category for dynamic filtering
+    subcategories = SubCategory.objects.select_related('category').all().order_by('name')
 
     # --- Pagination ---
     paginator = Paginator(products, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+
+    # --- Build query params for pagination links (filters only, no sort params) ---
+    query_params_dict = {}
+    if category_filter:
+        query_params_dict['category'] = category_filter
+    if subcategory_filter:
+        query_params_dict['subcategory'] = subcategory_filter
+    if active_filter:
+        query_params_dict['active'] = active_filter
+    if search_query:
+        query_params_dict['q'] = search_query
+    if sku_query:
+        query_params_dict['sku'] = sku_query
+    
+    query_params = urlencode(query_params_dict)
+    
+    # --- Build full query params including sort for current page (for edit/delete return URLs) ---
+    full_query_params_dict = query_params_dict.copy()
+    if price_order:
+        full_query_params_dict['price_order'] = price_order
+    if rating_order:
+        full_query_params_dict['rating_order'] = rating_order
+    if stock_order:
+        full_query_params_dict['stock_order'] = stock_order
+    if name_order:
+        full_query_params_dict['name_order'] = name_order
+    if category_order:
+        full_query_params_dict['category_order'] = category_order
+    if subcategory_order:
+        full_query_params_dict['subcategory_order'] = subcategory_order
+    if status_order:
+        full_query_params_dict['status_order'] = status_order
+    
+    full_query_params = urlencode(full_query_params_dict)
 
     context = {
         'page_obj': page_obj,
@@ -119,6 +302,12 @@ def product_list(request):
         'price_order': price_order,
         'rating_order': rating_order,
         'stock_order': stock_order,
+        'name_order': name_order,
+        'category_order': category_order,
+        'subcategory_order': subcategory_order,
+        'status_order': status_order,
+        'query_params': query_params,  # Filter params only (for header sort links)
+        'full_query_params': full_query_params,  # All params including sort (for edit/delete return URLs)
     }
     return render(request, 'admin_panel/product_list.html', context)
 
@@ -127,7 +316,7 @@ def product_add(request):
     return_url = request.GET.get('return_url', reverse('admin_panel:product_list'))
     
     if request.method == "POST":
-        form = ProductForm(request.POST)
+        form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
             product = form.save()
             messages.success(request, f'Product "{product.name}" has been added successfully!')
@@ -138,22 +327,8 @@ def product_add(request):
     else:
         form = ProductForm()
     
-    # Get existing categories and subcategories for datalist
-    categories = (
-        Product.objects.values_list('category__name', flat=True)
-        .distinct()
-        .order_by('category__name')
-    )
-    subcategories = (
-        Product.objects.values_list('subcategory__name', flat=True)
-        .distinct()
-        .order_by('subcategory__name')
-    )
-    
     return render(request, "admin_panel/product_form.html", {
         "form": form,
-        "categories": categories,
-        "subcategories": subcategories,
         "return_url": return_url,
     })
 
@@ -164,7 +339,7 @@ def product_edit(request, pk):
     return_url = request.GET.get('return_url', reverse('admin_panel:product_list'))
     
     if request.method == "POST":
-        form = ProductForm(request.POST, instance=product)
+        form = ProductForm(request.POST, request.FILES, instance=product)
         if form.is_valid():
             product = form.save()
             messages.success(request, f'Product "{product.name}" has been updated successfully!')
@@ -175,22 +350,8 @@ def product_edit(request, pk):
     else:
         form = ProductForm(instance=product)
     
-    # Get existing categories and subcategories for datalist
-    categories = (
-        Product.objects.values_list('category__name', flat=True)
-        .distinct()
-        .order_by('category__name')
-    )
-    subcategories = (
-        Product.objects.values_list('subcategory__name', flat=True)
-        .distinct()
-        .order_by('subcategory__name')
-    )
-    
     return render(request, "admin_panel/product_form.html", {
         "form": form,
-        "categories": categories,
-        "subcategories": subcategories,
         "return_url": return_url,
     })
 
@@ -290,6 +451,30 @@ def customer_list(request):
     occupations = Customer.objects.values_list('occupation', flat=True).distinct().order_by('occupation')
     educations = education_hierarchy  # Use the hierarchy order
 
+    # --- Build query params for pagination links ---
+    from urllib.parse import urlencode
+    query_params_dict = {}
+    if search_id:
+        query_params_dict['q'] = search_id
+    if gender_filter:
+        query_params_dict['gender'] = gender_filter
+    if occupation_filter:
+        query_params_dict['occupation'] = occupation_filter
+    if education_filter:
+        query_params_dict['education'] = education_filter
+    if age_filter:
+        query_params_dict['age'] = age_filter
+    if age_order:
+        query_params_dict['age_order'] = age_order
+    if gender_order:
+        query_params_dict['gender_order'] = gender_order
+    if occupation_order:
+        query_params_dict['occupation_order'] = occupation_order
+    if education_order:
+        query_params_dict['education_order'] = education_order
+    
+    query_params = urlencode(query_params_dict)
+
     context = {
         'page_obj': page_obj,
         'search_id': search_id,
@@ -304,6 +489,7 @@ def customer_list(request):
         'genders': genders,
         'occupations': occupations,
         'educations': educations,
+        'query_params': query_params,
     }
 
     return render(request, 'admin_panel/customer_list.html', context)
@@ -347,17 +533,99 @@ def customer_edit(request, pk):
     })
 
 # List all transactions
+def _customer_display(customer: Customer) -> str:
+    """Prefer username; fall back to full name or Customer #id."""
+    try:
+        if customer and getattr(customer, 'user', None):
+            user = customer.user
+            if getattr(user, 'username', ''):
+                return user.username
+            full_name = f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip()
+            if full_name:
+                return full_name
+    except Exception:
+        pass
+    # Fallback
+    return f"Customer #{getattr(customer, 'pk', '')}"
+
+
 def transaction_list(request):
-    transactions = Transaction.objects.all().order_by('-transaction_date')
-    return render(request, 'admin_panel/transaction_list.html', {'transactions': transactions})
+    """Display unified customer purchases: ecommerce Orders + internal Transactions.
+    Orders (from ecommercemodule) and Transactions (internal) are combined and sorted by date desc.
+    """
+    # Fetch ecommerce orders
+    orders = Order.objects.select_related('customer').all()
+    # Fetch internal transactions
+    transactions = Transaction.objects.select_related('customer').all()
+
+    # Normalize into a unified list of dicts
+    unified = []
+    for o in orders:
+        unified.append({
+            'source': 'order',
+            'id': o.pk,
+            'customer': o.customer,
+            'customer_name': _customer_display(o.customer),
+            'date': o.created_at,
+            'total': o.total_amount,
+            'status': getattr(o, 'status', ''),
+        })
+    for t in transactions:
+        unified.append({
+            'source': 'transaction',
+            'id': t.transaction_id,
+            'customer': t.customer,
+            'customer_name': _customer_display(t.customer),
+            'date': t.transaction_date,
+            'total': t.total_amount,
+            'status': '',
+        })
+
+    unified.sort(key=lambda r: r['date'], reverse=True)
+
+    return render(request, 'admin_panel/transaction_list.html', {'records': unified})
 
 # View items of a single transaction
 def transaction_detail(request, pk):
-    transaction = get_object_or_404(Transaction, pk=pk)
-    items = transaction.items.all()  # Related TransactionItem objects
+    """Show detail for either an Order (ecommerce) or a Transaction (internal),
+    with Bootstrap-friendly context and computed subtotals.
+    """
+    # Try order first
+    order = Order.objects.select_related('customer__user').filter(pk=pk).first()
+    if order:
+        items_qs = order.items.select_related('product').all()
+        items = [
+            {
+                'product': it.product,
+                'quantity': it.quantity,
+                'price': it.unit_price,
+                'subtotal': it.unit_price * it.quantity,
+            }
+            for it in items_qs
+        ]
+        return render(request, 'admin_panel/transaction_detail.html', {
+            'order': order,
+            'items': items,
+            'is_order': True,
+            'customer_username': _customer_display(order.customer),
+        })
+    # Fallback to internal transaction
+    transaction = get_object_or_404(Transaction.objects.select_related('customer__user'), pk=pk)
+    items_qs = transaction.items.select_related('product').all()
+    items = [
+        {
+            'product': it.product,
+            'quantity': it.quantity,
+            'price': it.price,
+            'subtotal': it.price * it.quantity,
+        }
+        for it in items_qs
+    ]
     return render(request, 'admin_panel/transaction_detail.html', {
         'transaction': transaction,
-        'items': items
+        'items': items,
+        'is_order': False,
+        'customer_username': _customer_display(transaction.customer),
     })
     
 def inventory_list(request):
@@ -680,4 +948,43 @@ def inventory_history(request):
         'search_query': search_query,
     }
     return render(request, 'admin_panel/inventory_history.html', context)
+
+
+def get_subcategories(request, category_id):
+    """
+    API endpoint to get subcategories for a given category.
+    Returns JSON response with subcategory data.
+    """
+    try:
+        category = get_object_or_404(Category, pk=category_id)
+        subcategories = SubCategory.objects.filter(category=category).order_by('name')
+        
+        data = {
+            'subcategories': [
+                {
+                    'id': sub.id,
+                    'name': sub.name,
+                    'display_name': str(sub)
+                }
+                for sub in subcategories
+            ]
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+def order_update_status(request, pk):
+    """Update an ecommerce order's status from the transactions page."""
+    order = get_object_or_404(Order, pk=pk)
+    if request.method == 'POST':
+        new_status = request.POST.get('status')
+        valid_statuses = [choice[0] for choice in Order.StatusChoices.choices]
+        if new_status in valid_statuses:
+            order.status = new_status
+            order.save()
+            messages.success(request, f"Order #{order.pk} status updated to {new_status}.")
+        else:
+            messages.error(request, "Invalid status selected.")
+    return redirect('admin_panel:transaction_list')
 
