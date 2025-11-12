@@ -398,7 +398,7 @@ function formatCurrency(value) {
 }
 
 // Daily Sales Chart Data
-const dailyStatsData = {{ daily_stats_json|safe }};
+const dailyStatsData = JSON.parse('{{ daily_stats_json|escapejs }}');
 const dailyLabels = dailyStatsData.map(d => {
     const date = new Date(d.date);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -501,7 +501,7 @@ new Chart(dailySalesCtx, {
 });
 
 // Category Chart Data
-const categoryData = {{ category_chart_json|safe }};
+const categoryData = JSON.parse('{{ category_chart_json|escapejs }}');
 const categoryLabels = categoryData.map(c => c.name);
 const categoryRevenue = categoryData.map(c => c.revenue);
 
@@ -557,7 +557,7 @@ new Chart(categoryCtx, {
 });
 
 // Top Products Chart Data
-const topProductsData = {{ top_products_json|safe }};
+const topProductsData = JSON.parse('{{ top_products_json|escapejs }}');
 const productLabels = topProductsData.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name);
 const productQty = topProductsData.map(p => p.qty);
 
@@ -620,7 +620,7 @@ new Chart(topProductsCtx, {
 
 // Animate revenue number
 const revenueElement = document.getElementById('totalRevenue');
-const targetRevenue = {{ total_order_amount }};
+const targetRevenue = parseFloat('{{ total_order_amount|floatformat:2|escapejs }}');
 let currentRevenue = 0;
 const increment = targetRevenue / 50;
 const timer = setInterval(() => {
