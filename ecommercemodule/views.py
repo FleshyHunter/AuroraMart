@@ -592,6 +592,28 @@ def checkout(request):
                     ]
                     OrderItem.objects.bulk_create(order_items)
                     
+                    #-m new stuff here
+                    # Create outgoing inventory history entries for each order item
+                    try:
+                        from admin_panel.models import InventoryHistory
+
+                        for oi in order_items:
+                            try:
+                                InventoryHistory.objects.create(
+                                    product=oi.product,
+                                    movement_type='outgoing',
+                                    quantity=oi.quantity,
+                                    reference_id=order.pk,
+                                    notes=f'Outgoing from order {order.pk}'
+                                )
+                            except Exception:
+                                # Continue on individual failures
+                                continue
+                    except Exception:
+                        # If admin_panel.models isn't importable, skip history creation
+                        pass
+                    # -m new stuff ends here
+                    
                     # Update product inventory
                     for item in items:
                         Product.objects.select_for_update().filter(pk=item.product.pk).update(

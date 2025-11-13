@@ -32,6 +32,8 @@ urlpatterns = [
     path("checkout/", views.checkout_form, name="checkout_form"),
     path("incoming-stock/", views.incoming_stock, name="incoming_stock"),
     path("inventory-history/", views.inventory_history, name="inventory_history"),
+    # API endpoint to fetch top products for a timeframe (AJAX)
+    path("api/top-products/", views.top_products_api, name="top_products_api"),
     
     # API endpoint for dynamic subcategory loading
     path("api/subcategories/<int:category_id>/", views.get_subcategories, name="get_subcategories"),
