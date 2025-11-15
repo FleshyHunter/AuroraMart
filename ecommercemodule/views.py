@@ -10,7 +10,7 @@ from .forms import StorePasswordResetForm
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import F, Q, Avg, Count
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -331,11 +331,29 @@ def logout_view(request):
 
 @login_required
 def profile_view(request):
+    from admin_panel.models import VoucherAssignment
+    from django.utils import timezone
+    
     profile = _get_or_create_profile(request.user)
     saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
+    
+    # Get vouchers (both valid and expired for display)
+    now = timezone.now()
+    voucher_assignments = VoucherAssignment.objects.filter(
+        customer=profile
+    ).select_related('voucher').order_by('-assigned_at')
+    
+    # Categorize vouchers
+    available_vouchers = [v for v in voucher_assignments if not v.used and v.expires_at > now]
+    used_vouchers = [v for v in voucher_assignments if v.used]
+    expired_vouchers = [v for v in voucher_assignments if not v.used and v.expires_at <= now]
+    
     return render(request, "ecommercemodule/profile.html", {
         "profile": profile,
-        "saved_addresses": saved_addresses
+        "saved_addresses": saved_addresses,
+        "available_vouchers": available_vouchers,
+        "used_vouchers": used_vouchers,
+        "expired_vouchers": expired_vouchers,
     })
 
 
@@ -601,9 +619,76 @@ def checkout(request):
     # Get user profile (needed for both GET and POST)
     profile = _get_or_create_profile(request.user)
     
+    # Initialize discount variables
+    voucher_discount = Decimal("0.00")
+    applied_voucher = None
+    final_total = cart_total
+    
     # Handle form submission
     if request.method == "POST":
+        # Check if this is just a voucher application (not final checkout)
+        apply_voucher_only = request.POST.get('apply_voucher') == 'true'
+        
         form = CheckoutForm(request.POST)
+        
+        # Validate and apply voucher if provided
+        voucher_code = request.POST.get("voucher_code", "").strip()
+        if voucher_code:
+                from admin_panel.models import VoucherAssignment
+                from django.utils import timezone
+                
+                try:
+                    voucher_assignment = VoucherAssignment.objects.select_related('voucher').get(
+                        voucher__code=voucher_code,
+                        customer=profile,
+                        used=False
+                    )
+                    
+                    # Check if expired
+                    if voucher_assignment.expires_at <= timezone.now():
+                        messages.error(request, f"Voucher code '{voucher_code}' has expired.")
+                    else:
+                        # Calculate discount
+                        percent_off = voucher_assignment.voucher.percent_off
+                        cap_amount = voucher_assignment.voucher.cap_amount
+                        
+                        voucher_discount = (cart_total * percent_off / Decimal("100")).quantize(Decimal("0.01"))
+                        if cap_amount > 0 and voucher_discount > cap_amount:
+                            voucher_discount = cap_amount
+                        
+                        final_total = cart_total - voucher_discount
+                        applied_voucher = voucher_assignment
+                        messages.success(request, f"Voucher '{voucher_code}' applied! You saved ${voucher_discount:.2f} ({percent_off}% off)")
+                        
+                except VoucherAssignment.DoesNotExist:
+                    messages.error(request, f"Invalid voucher code '{voucher_code}' or voucher not assigned to you.")
+        else:
+            final_total = cart_total
+        
+        # If this is just applying voucher, re-render the form with discount shown
+        if apply_voucher_only:
+            # Pre-fill form with submitted data for re-display
+            form = CheckoutForm(request.POST)
+            saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
+            from admin_panel.models import VoucherAssignment
+            from django.utils import timezone
+            available_vouchers = VoucherAssignment.objects.select_related('voucher').filter(
+                customer=profile,
+                used=False,
+                expires_at__gt=timezone.now()
+            ).order_by('expires_at')
+            
+            context = {
+                "form": form,
+                "items": items,
+                "cart_total": cart_total,
+                "voucher_discount": voucher_discount,
+                "final_total": final_total,
+                "item_count": sum(item.quantity for item in items),
+                "saved_addresses": saved_addresses,
+                "available_vouchers": available_vouchers,
+            }
+            return render(request, "ecommercemodule/checkout.html", context)
         
         if form.is_valid():
             # Check stock availability one more time before processing
@@ -636,7 +721,7 @@ def checkout(request):
                     },
                     "order_info": {
                         "items": items,
-                        "cart_total": cart_total,
+                        "cart_total": final_total,  # Use final_total for payment processing
                         "customer_profile": _get_or_create_profile(request.user),
                     }
                 }
@@ -649,9 +734,14 @@ def checkout(request):
                     profile = _get_or_create_profile(request.user)
                     order = Order.objects.create(
                         customer=profile,
-                        total_amount=cart_total,
+                        total_amount=final_total,  # Use final_total (after voucher discount)
                         status=Order.StatusChoices.PAID,  # Set status to PAID automatically
                     )
+                    
+                    # Mark voucher as used if applied
+                    if applied_voucher:
+                        applied_voucher.used = True
+                        applied_voucher.save()
                     
                     # Create order items
                     order_items = [
@@ -766,12 +856,24 @@ def checkout(request):
     # Get saved addresses for display
     saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
     
+    # Get available vouchers for display
+    from admin_panel.models import VoucherAssignment
+    from django.utils import timezone
+    available_vouchers = VoucherAssignment.objects.select_related('voucher').filter(
+        customer=profile,
+        used=False,
+        expires_at__gt=timezone.now()
+    ).order_by('expires_at')
+    
     context = {
         "form": form,
         "items": items,
         "cart_total": cart_total,
+        "voucher_discount": voucher_discount,
+        "final_total": final_total,
         "item_count": sum(item.quantity for item in items),
         "saved_addresses": saved_addresses,
+        "available_vouchers": available_vouchers,
     }
     
     return render(request, "ecommercemodule/checkout.html", context)
@@ -1295,3 +1397,75 @@ def address_set_default(request, address_id):
     
     messages.success(request, f"{address.label or 'Address'} set as default.")
     return redirect('ecommercemodule:profile')
+
+
+@login_required
+@require_POST
+def validate_voucher(request):
+    """
+    AJAX endpoint to validate voucher code and return discount information.
+    Returns JSON with validation result and discount details.
+    """
+    from admin_panel.models import VoucherAssignment
+    from django.utils import timezone
+    
+    voucher_code = request.POST.get('voucher_code', '').strip().upper()
+    
+    if not voucher_code:
+        return JsonResponse({
+            'valid': False,
+            'message': 'Please enter a voucher code.'
+        })
+    
+    profile = _get_or_create_profile(request.user)
+    cart = _ensure_cart(request)
+    
+    # Calculate cart total
+    items = list(cart.items.select_related("product"))
+    cart_total = sum(
+        (item.product.unit_price * item.quantity for item in items),
+        Decimal("0.00")
+    )
+    
+    try:
+        # Find voucher assignment for this user
+        voucher_assignment = VoucherAssignment.objects.select_related('voucher').get(
+            voucher__code=voucher_code,
+            customer=profile,
+            used=False
+        )
+        
+        # Check if expired
+        now = timezone.now()
+        if voucher_assignment.expires_at <= now:
+            return JsonResponse({
+                'valid': False,
+                'message': f"Voucher '{voucher_code}' has expired on {voucher_assignment.expires_at.strftime('%d %b %Y')}."
+            })
+        
+        # Calculate discount
+        voucher = voucher_assignment.voucher
+        percent_off = voucher.percent_off
+        discount_amount = (cart_total * percent_off / 100).quantize(Decimal("0.01"))
+        
+        # Apply cap if set
+        if voucher.cap_amount > 0:
+            discount_amount = min(discount_amount, voucher.cap_amount)
+        
+        return JsonResponse({
+            'valid': True,
+            'discount': float(discount_amount),
+            'percent_off': float(percent_off),
+            'cap_amount': float(voucher.cap_amount) if voucher.cap_amount else None,
+            'code': voucher_code,
+            'expires_at': voucher_assignment.expires_at.strftime('%d %b %Y')
+        })
+        
+    except VoucherAssignment.DoesNotExist:
+        return JsonResponse({
+            'valid': False,
+            'message': f"Invalid voucher code '{voucher_code}' or voucher not assigned to you."
+        })
+
+
+

@@ -321,6 +321,19 @@ class CheckoutForm(forms.Form):
     )
     
     # ========================================
+    # Voucher Code
+    # ========================================
+    voucher_code = forms.CharField(
+        max_length=32,
+        required=False,
+        label="Voucher Code (Optional)",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Enter voucher code"
+        })
+    )
+    
+    # ========================================
     # Payment Information
     # ========================================
     cardholder_name = forms.CharField(

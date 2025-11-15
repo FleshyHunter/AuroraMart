@@ -110,6 +110,147 @@
             </div>
         </div>
 
+        <!-- Vouchers -->
+        <div class="col-12 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0"><i class="bi bi-ticket-perforated me-2 text-primary"></i>My Vouchers</h5>
+                </div>
+                <div class="card-body p-4">
+                    {% if available_vouchers or used_vouchers or expired_vouchers %}
+                        <!-- Available Vouchers -->
+                        {% if available_vouchers %}
+                        <div class="mb-4">
+                            <h6 class="text-success mb-3">
+                                <i class="bi bi-check-circle-fill me-2"></i>Available ({{ available_vouchers|length }})
+                            </h6>
+                            <div class="row g-3">
+                                {% for assignment in available_vouchers %}
+                                <div class="col-12 col-md-6">
+                                    <div class="card border-success h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="mb-0 text-success">
+                                                    <i class="bi bi-ticket-perforated-fill me-1"></i>{{ assignment.voucher.name }}
+                                                </h6>
+                                                <span class="badge bg-success">Active</span>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div class="mb-2">
+                                                <span class="badge bg-success-subtle text-success px-3 py-2 fs-6 font-monospace">
+                                                    {{ assignment.voucher.code }}
+                                                </span>
+                                            </div>
+                                            <p class="mb-1 small">
+                                                <strong class="text-success">{{ assignment.voucher.percent_off }}% OFF</strong>
+                                                {% if assignment.voucher.cap_amount > 0 %}
+                                                    <span class="text-muted">(Max ${{ assignment.voucher.cap_amount|floatformat:2 }})</span>
+                                                {% endif %}
+                                            </p>
+                                            <p class="mb-0 small text-muted">
+                                                <i class="bi bi-calendar-event me-1"></i>
+                                                Expires: <strong>{{ assignment.expires_at|date:"d M Y, g:i A" }}</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Used Vouchers -->
+                        {% if used_vouchers %}
+                        <div class="mb-4">
+                            <h6 class="text-secondary mb-3">
+                                <i class="bi bi-check2-all me-2"></i>Used ({{ used_vouchers|length }})
+                            </h6>
+                            <div class="row g-3">
+                                {% for assignment in used_vouchers %}
+                                <div class="col-12 col-md-6">
+                                    <div class="card border-secondary h-100 opacity-75">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="mb-0 text-secondary">
+                                                    <i class="bi bi-ticket-perforated me-1"></i>{{ assignment.voucher.name }}
+                                                </h6>
+                                                <span class="badge bg-secondary">Used</span>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div class="mb-2">
+                                                <span class="badge bg-secondary-subtle text-secondary px-3 py-2 fs-6 font-monospace">
+                                                    {{ assignment.voucher.code }}
+                                                </span>
+                                            </div>
+                                            <p class="mb-1 small text-secondary">
+                                                <strong>{{ assignment.voucher.percent_off }}% OFF</strong>
+                                                {% if assignment.voucher.cap_amount > 0 %}
+                                                    <span>(Max ${{ assignment.voucher.cap_amount|floatformat:2 }})</span>
+                                                {% endif %}
+                                            </p>
+                                            <p class="mb-0 small text-muted">
+                                                <i class="bi bi-calendar-check me-1"></i>
+                                                Used on: <strong>{{ assignment.assigned_at|date:"d M Y" }}</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Expired Vouchers -->
+                        {% if expired_vouchers %}
+                        <div>
+                            <h6 class="text-danger mb-3">
+                                <i class="bi bi-x-circle-fill me-2"></i>Expired ({{ expired_vouchers|length }})
+                            </h6>
+                            <div class="row g-3">
+                                {% for assignment in expired_vouchers %}
+                                <div class="col-12 col-md-6">
+                                    <div class="card border-danger h-100 opacity-50">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="mb-0 text-danger">
+                                                    <i class="bi bi-ticket-perforated me-1"></i>{{ assignment.voucher.name }}
+                                                </h6>
+                                                <span class="badge bg-danger">Expired</span>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div class="mb-2">
+                                                <span class="badge bg-danger-subtle text-danger px-3 py-2 fs-6 font-monospace">
+                                                    {{ assignment.voucher.code }}
+                                                </span>
+                                            </div>
+                                            <p class="mb-1 small text-danger">
+                                                <strong>{{ assignment.voucher.percent_off }}% OFF</strong>
+                                                {% if assignment.voucher.cap_amount > 0 %}
+                                                    <span>(Max ${{ assignment.voucher.cap_amount|floatformat:2 }})</span>
+                                                {% endif %}
+                                            </p>
+                                            <p class="mb-0 small text-muted">
+                                                <i class="bi bi-calendar-x me-1"></i>
+                                                Expired: <strong>{{ assignment.expires_at|date:"d M Y" }}</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-ticket-perforated text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2 mb-0">No vouchers available</p>
+                            <p class="text-muted small">Check back later for promotional offers!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
         <!-- Personal Information -->
         <div class="col-12 mb-4">
             <div class="card border-0 shadow-sm">
