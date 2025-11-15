@@ -19,7 +19,8 @@ try:  # pragma: no cover
     from .recommender import (
         get_recommendations,
         frequently_bought_together,
-        cart_add_on_recommendations
+        cart_add_on_recommendations,
+        category_exploration_recommendations
     )
 except Exception:
     def get_recommendations(*args, **kwargs):  # type: ignore[override]
@@ -28,9 +29,11 @@ except Exception:
         return []
     def cart_add_on_recommendations(*args, **kwargs):  # type: ignore[override]
         return []
+    def category_exploration_recommendations(*args, **kwargs):  # type: ignore[override]
+        return []
 
 try:  # pragma: no cover
-    from .integration import predict_customer_preferred_category
+    from .classifier import predict_customer_preferred_category
 except Exception:
     def predict_customer_preferred_category(*args, **kwargs):  # type: ignore[override]
         return None
@@ -40,6 +43,7 @@ __all__ = [
     'get_recommendations',
     'frequently_bought_together',
     'cart_add_on_recommendations',
+    'category_exploration_recommendations',
     'predict_customer_preferred_category'
 ]
 __version__ = "0.1.0"

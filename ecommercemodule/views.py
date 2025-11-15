@@ -9,7 +9,7 @@ from django.contrib.auth.views import PasswordResetView, PasswordResetConfirmVie
 from .forms import StorePasswordResetForm
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F, Q, Avg, Count
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -23,16 +23,17 @@ from .forms import (
     CheckoutForm,
     CustomerForm,
     LoginForm,
-    ProfileCompletionForm,
     RegistrationForm,
+    ReviewForm,
     StorePasswordResetForm,
 )
 from auroramart.models import Category, Customer, Product, SubCategory
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Cart, CartItem, CustomerAddress, Order, OrderItem, Review
 from auroramart.ml import (
     predict_customer_preferred_category as ml_predict_preferred_category,
     frequently_bought_together as ml_fbt,
     cart_add_on_recommendations as ml_cart_recs,
+    category_exploration_recommendations as ml_category_explore,
 )
 
 
@@ -163,6 +164,9 @@ def product_list(request, category_slug, subcategory_slug=None):
     query_params = request.GET.copy()
     query_params.pop("page", None)
     query_string = query_params.urlencode()
+    
+    # Get category exploration recommendations for tasteful selling
+    exploration_recommendations = ml_category_explore(category_slug, top_n=4)
 
     return render(
         request,
@@ -181,6 +185,7 @@ def product_list(request, category_slug, subcategory_slug=None):
                 "sort": sort,
             },
             "query_string": query_string,
+            "exploration_recommendations": exploration_recommendations,
         },
     )
 
@@ -201,7 +206,41 @@ def product_search(request):
 
 
 def product_detail(request, pk):
-    product = get_object_or_404(Product, pk=pk, is_active=True)
+    # Annotate product with avg_rating and review_count from Review model
+    product = get_object_or_404(
+        Product.objects.annotate(
+            avg_rating=Avg('reviews__rating'),
+            review_count=Count('reviews', distinct=True)
+        ),
+        pk=pk,
+        is_active=True
+    )
+    
+    # Prefetch public reviews with user info
+    public_reviews = product.reviews.filter(is_public=True).select_related('user').order_by('-created_at')
+    
+    # Check if current user has a review and if they've purchased this product
+    user_review = None
+    review_form = None
+    has_purchased = False
+    
+    if request.user.is_authenticated:
+        # Check if user has purchased this product (Order must be PAID)
+        profile = _get_or_create_profile(request.user)
+        has_purchased = OrderItem.objects.filter(
+            order__customer=profile,
+            order__status=Order.StatusChoices.PAID,
+            product=product
+        ).exists()
+        
+        user_review = product.reviews.filter(user=request.user).first()
+        if user_review:
+            # If user has a review, pre-populate form for editing
+            review_form = ReviewForm(instance=user_review)
+        elif has_purchased:
+            # Only show form if user has purchased the product
+            review_form = ReviewForm()
+    
     suggested_products = (
         Product.objects.filter(subcategory=product.subcategory, is_active=True)
         .exclude(pk=product.pk)[:4]
@@ -213,15 +252,20 @@ def product_detail(request, pk):
     quantity_widget.attrs["class"] = "form-control form-control-lg text-center"
     if product.quantity_on_hand > 0:
         quantity_widget.attrs["max"] = product.quantity_on_hand
+    
     return render(
         request,
         "ecommercemodule/product_detail.html",
         {
             "product": product,
-            "suggested_products": suggested_products,  # TODO: plug ML recommendations here.
+            "suggested_products": suggested_products,
             "fbt_products": fbt_products,
             "form": form,
             "is_low_stock": 0 < product.quantity_on_hand < 10,
+            "public_reviews": public_reviews,
+            "user_review": user_review,
+            "review_form": review_form,
+            "has_purchased": has_purchased,
         },
     )
 
@@ -247,7 +291,7 @@ def complete_profile(request):
     profile = _get_or_create_profile(request.user)
     
     if request.method == "POST":
-        form = ProfileCompletionForm(request.POST, instance=profile)
+        form = CustomerForm(request.POST, instance=profile)
         if form.is_valid():
             customer = form.save()
             
@@ -264,7 +308,7 @@ def complete_profile(request):
             
             return redirect("ecommercemodule:home")
     else:
-        form = ProfileCompletionForm(instance=profile)
+        form = CustomerForm(instance=profile)
     
     return render(request, "ecommercemodule/complete_profile.html", {"form": form})
 
@@ -298,8 +342,17 @@ def profile_update(request):
     if request.method == "POST":
         form = CustomerForm(request.POST, instance=profile)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Profile updated successfully.")
+            customer = form.save()
+            
+            # Re-predict preferred category based on updated profile
+            predicted_category = ml_predict_preferred_category(customer)
+            if predicted_category:
+                customer.preferred_category = predicted_category
+                customer.save()
+                messages.success(request, "Profile updated successfully! Your preferred category has been updated.")
+            else:
+                messages.success(request, "Profile updated successfully!")
+            
             return redirect("ecommercemodule:profile")
     else:
         form = CustomerForm(instance=profile)
@@ -313,11 +366,23 @@ def profile_update(request):
 @login_required
 @require_POST
 def deactivate_account(request):
+    """Permanently delete user account and all related data.
+    This action is irreversible - all customer data, orders, reviews, etc. will be deleted.
+    """
     user = request.user
-    user.is_active = False
-    user.save(update_fields=["is_active"])
+    username = user.username
+    
+    # Log out first
     logout(request)
-    return render(request, "ecommercemodule/account_deactivated.html")
+    
+    # Permanently delete the user (CASCADE will delete related Customer, Orders, Reviews, etc.)
+    user.delete()
+    
+    messages.success(
+        request, 
+        f"Account '{username}' has been permanently deleted. All your data has been removed."
+    )
+    return redirect("ecommercemodule:home")
 
 
 @login_required
@@ -367,6 +432,7 @@ def view_cart(request):
     cart = _ensure_cart(request)
     cart_total, item_count, items = _cart_overview(cart)
     rows = []
+
     for item in items:
         form = CartItemUpdateForm(initial={"quantity": item.quantity})
         widget_attrs = form.fields["quantity"].widget.attrs
@@ -376,19 +442,41 @@ def view_cart(request):
         widget_attrs["step"] = 1
         widget_attrs["class"] = "form-control form-control-sm text-center"
         rows.append((item, form))
-    # Add-on suggestions based on current basket; fallback to generic picks
+    
+    # Add-on suggestions based on current basket using ML recommendations
     addon_products = []
-    try:
-        addon_products = list(
-            ml_cart_recs([i.product for i in items], top_n=4)
-        )
-    except Exception:
-        addon_products = []
+    if items:
+        try:
+            # Use ML cart recommendations based on current basket
+            addon_products = list(
+                ml_cart_recs([i.product for i in items], top_n=4)
+            )
+        except Exception as e:
+            # Log error if needed
+            addon_products = []
+    
+    # Fallback: if ML didn't return results or cart is empty, show popular products
     if not addon_products:
-        addon_products = list(
-            Product.objects.filter(is_active=True)
-            .exclude(pk__in=[item.product_id for item in items])[:4]
-        )
+        # Get products from the same categories as items in cart
+        if items:
+            category_ids = set(item.product.category_id for item in items)
+            product_ids_in_cart = [item.product_id for item in items]
+            addon_products = list(
+                Product.objects.filter(
+                    category_id__in=category_ids,
+                    is_active=True,
+                    quantity_on_hand__gt=0
+                )
+                .exclude(id__in=product_ids_in_cart)
+                .order_by('-rating', 'name')[:4]
+            )
+        else:
+            # If cart is empty, show top-rated products
+            addon_products = list(
+                Product.objects.filter(is_active=True, quantity_on_hand__gt=0)
+                .order_by('-rating', 'name')[:4]
+            )
+    
     return render(
         request,
         "ecommercemodule/cart.html",
@@ -529,6 +617,9 @@ def checkout(request):
         Decimal("0.00")
     )
     
+    # Get user profile (needed for both GET and POST)
+    profile = _get_or_create_profile(request.user)
+    
     # Handle form submission
     if request.method == "POST":
         form = CheckoutForm(request.POST)
@@ -573,11 +664,12 @@ def checkout(request):
                     # Process checkout (placeholder - will integrate with payment gateway later)
                     order_id = perform_checkout(payload)
                     
-                    # Create order record
+                    # Create order record with PAID status (since checkout is successful)
                     profile = _get_or_create_profile(request.user)
                     order = Order.objects.create(
                         customer=profile,
                         total_amount=cart_total,
+                        status=Order.StatusChoices.PAID,  # Set status to PAID automatically
                     )
                     
                     # Create order items
@@ -596,6 +688,21 @@ def checkout(request):
                     for item in items:
                         Product.objects.select_for_update().filter(pk=item.product.pk).update(
                             quantity_on_hand=F("quantity_on_hand") - item.quantity
+                        )
+                    
+                    # Save address if requested
+                    if form.cleaned_data.get("save_address"):
+                        CustomerAddress.objects.create(
+                            customer=profile,
+                            label=form.cleaned_data.get("address_label", ""),
+                            recipient_name=form.cleaned_data["recipient_name"],
+                            mobile_number=form.cleaned_data["mobile_number"],
+                            email=form.cleaned_data.get("email", ""),
+                            postal_code=form.cleaned_data["postal_code"],
+                            address_line1=form.cleaned_data["address_line1"],
+                            address_line2=form.cleaned_data.get("address_line2", ""),
+                            delivery_notes=form.cleaned_data.get("delivery_notes", ""),
+                            is_default=form.cleaned_data.get("set_as_default", False)
                         )
                     
                     # Clear the cart
@@ -625,23 +732,43 @@ def checkout(request):
     else:
         # GET request - display empty form
         # Pre-fill with user profile data if available
-        profile = _get_or_create_profile(request.user)
         initial_data = {}
         
-        if request.user.email:
-            initial_data["email"] = request.user.email
-        if request.user.first_name and request.user.last_name:
-            initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
-        elif request.user.username:
-            initial_data["recipient_name"] = request.user.username
+        # Try to load default address first
+        default_address = CustomerAddress.objects.filter(
+            customer=profile,
+            is_default=True
+        ).first()
+        
+        if default_address:
+            # Pre-fill from saved default address
+            initial_data["recipient_name"] = default_address.recipient_name
+            initial_data["mobile_number"] = default_address.mobile_number
+            initial_data["email"] = default_address.email or request.user.email
+            initial_data["postal_code"] = default_address.postal_code
+            initial_data["address_line1"] = default_address.address_line1
+            initial_data["address_line2"] = default_address.address_line2 or ""
+            initial_data["delivery_notes"] = default_address.delivery_notes or ""
+        else:
+            # Fall back to user profile data
+            if request.user.email:
+                initial_data["email"] = request.user.email
+            if request.user.first_name and request.user.last_name:
+                initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
+            elif request.user.username:
+                initial_data["recipient_name"] = request.user.username
         
         form = CheckoutForm(initial=initial_data)
+    
+    # Get saved addresses for display
+    saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
     
     context = {
         "form": form,
         "items": items,
         "cart_total": cart_total,
         "item_count": sum(item.quantity for item in items),
+        "saved_addresses": saved_addresses,
     }
     
     return render(request, "ecommercemodule/checkout.html", context)
@@ -666,7 +793,298 @@ def order_detail(request, order_id):
         pk=order_id,
         customer=profile,
     )
-    return render(request, "ecommercemodule/order_detail.html", {"order": order})
+    
+    # Get user's reviews for products in this order
+    product_ids = [item.product.id for item in order.items.all()]
+    user_reviews = {
+        review.product_id: review 
+        for review in Review.objects.filter(user=request.user, product_id__in=product_ids)
+    }
+    
+    # Attach review status to each order item
+    for item in order.items.all():
+        item.user_review = user_reviews.get(item.product.id)
+    
+    return render(request, "ecommercemodule/order_detail.html", {
+        "order": order,
+        "user_reviews": user_reviews,
+    })
+
+
+@login_required
+@require_POST
+def buy_again(request, order_id):
+    """
+    Prepare items from a past order for immediate checkout.
+    Validates stock availability and redirects to dedicated buy-again checkout.
+    """
+    profile = _get_or_create_profile(request.user)
+    order = get_object_or_404(
+        Order.objects.prefetch_related("items__product"),
+        pk=order_id,
+        customer=profile,
+    )
+    
+    # Track available items for checkout
+    available_items = []
+    out_of_stock_items = []
+    inactive_items = []
+    adjusted_items = []
+    
+    for order_item in order.items.all():
+        product = order_item.product
+        requested_qty = order_item.quantity
+        
+        # Check if product is still active
+        if not product.is_active:
+            inactive_items.append(product.name)
+            continue
+        
+        # Check stock availability
+        if product.quantity_on_hand <= 0:
+            out_of_stock_items.append(product.name)
+            continue
+        
+        # Adjust quantity if not enough stock
+        available_qty = min(requested_qty, product.quantity_on_hand)
+        
+        available_items.append({
+            'product_id': product.id,
+            'quantity': available_qty,
+            'original_quantity': requested_qty
+        })
+        
+        if available_qty < requested_qty:
+            adjusted_items.append({
+                'name': product.name,
+                'requested': requested_qty,
+                'available': available_qty
+            })
+    
+    # Build user-friendly messages
+    if adjusted_items:
+        for item in adjusted_items:
+            messages.warning(
+                request,
+                f"⚠ {item['name']}: Only {item['available']} unit(s) available (you originally ordered {item['requested']})"
+            )
+    
+    if out_of_stock_items:
+        if len(out_of_stock_items) == 1:
+            messages.error(request, f"✗ {out_of_stock_items[0]} is currently out of stock.")
+        else:
+            messages.error(request, f"✗ {len(out_of_stock_items)} item(s) are out of stock: {', '.join(out_of_stock_items[:3])}{'...' if len(out_of_stock_items) > 3 else ''}")
+    
+    if inactive_items:
+        if len(inactive_items) == 1:
+            messages.info(request, f"ℹ {inactive_items[0]} is no longer available.")
+        else:
+            messages.info(request, f"ℹ {len(inactive_items)} item(s) are no longer available.")
+    
+    # If nothing is available
+    if not available_items:
+        messages.warning(request, "Unable to re-order. All items are either out of stock or no longer available.")
+        return redirect('ecommercemodule:order_detail', order_id=order_id)
+    
+    # Store buy-again items in session for checkout
+    request.session['buy_again_items'] = available_items
+    request.session['buy_again_order_id'] = order_id
+    
+    # Redirect to buy-again checkout
+    return redirect('ecommercemodule:buy_again_checkout')
+
+
+@login_required
+def buy_again_checkout(request):
+    """
+    Dedicated checkout for Buy Again orders.
+    Only processes items from the specific buy-again order, not the cart.
+    """
+    # Get buy-again items from session
+    buy_again_items = request.session.get('buy_again_items')
+    buy_again_order_id = request.session.get('buy_again_order_id')
+    
+    if not buy_again_items:
+        messages.error(request, "No items to checkout. Please select a past order to buy again.")
+        return redirect("ecommercemodule:order_history")
+    
+    # Fetch products and build items list
+    items_data = []
+    total_amount = Decimal("0.00")
+    
+    for item_info in buy_again_items:
+        product = get_object_or_404(Product, pk=item_info['product_id'])
+        quantity = item_info['quantity']
+        
+        # Verify stock is still available
+        if product.quantity_on_hand < quantity:
+            messages.error(
+                request,
+                f"Stock availability changed for {product.name}. Please try again."
+            )
+            # Clear session and redirect back
+            request.session.pop('buy_again_items', None)
+            request.session.pop('buy_again_order_id', None)
+            return redirect('ecommercemodule:order_detail', order_id=buy_again_order_id)
+        
+        item_total = product.unit_price * quantity
+        total_amount += item_total
+        
+        items_data.append({
+            'product': product,
+            'quantity': quantity,
+            'item_total': item_total
+        })
+    
+    # Handle form submission
+    if request.method == "POST":
+        form = CheckoutForm(request.POST)
+        
+        if form.is_valid():
+            # Process the order
+            with transaction.atomic():
+                # Double-check stock availability
+                for item_data in items_data:
+                    product = item_data['product']
+                    quantity = item_data['quantity']
+                    
+                    if quantity > product.quantity_on_hand:
+                        messages.error(
+                            request,
+                            f"Sorry, {product.name} is out of stock or has insufficient quantity."
+                        )
+                        return redirect("ecommercemodule:order_history")
+                
+                # Build payload
+                payload = {
+                    "customer_info": {
+                        "recipient_name": form.cleaned_data["recipient_name"],
+                        "mobile_number": form.cleaned_data["mobile_number"],
+                        "email": form.cleaned_data.get("email", ""),
+                        "postal_code": form.cleaned_data["postal_code"],
+                        "address_line1": form.cleaned_data["address_line1"],
+                        "address_line2": form.cleaned_data.get("address_line2", ""),
+                        "delivery_notes": form.cleaned_data.get("delivery_notes", ""),
+                    },
+                    "payment_info": {
+                        "cardholder_name": form.cleaned_data["cardholder_name"],
+                        "card_number": form.cleaned_data["card_number"],
+                        "expiry": form.cleaned_data["expiry"],
+                        "cvv": form.cleaned_data["cvv"],
+                    },
+                    "order_info": {
+                        "items": items_data,
+                        "cart_total": total_amount,
+                        "customer_profile": _get_or_create_profile(request.user),
+                    }
+                }
+                
+                try:
+                    # Process checkout
+                    order_id = perform_checkout(payload)
+                    
+                    # Create order record with PAID status
+                    profile = _get_or_create_profile(request.user)
+                    order = Order.objects.create(
+                        customer=profile,
+                        total_amount=total_amount,
+                        status=Order.StatusChoices.PAID,
+                    )
+                    
+                    # Create order items
+                    order_items = [
+                        OrderItem(
+                            order=order,
+                            product=item_data['product'],
+                            quantity=item_data['quantity'],
+                            unit_price=item_data['product'].unit_price,
+                        )
+                        for item_data in items_data
+                    ]
+                    OrderItem.objects.bulk_create(order_items)
+                    
+                    # Update product inventory
+                    for item_data in items_data:
+                        Product.objects.select_for_update().filter(pk=item_data['product'].pk).update(
+                            quantity_on_hand=F("quantity_on_hand") - item_data['quantity']
+                        )
+                    
+                    # Save address if requested
+                    if form.cleaned_data.get("save_address"):
+                        CustomerAddress.objects.create(
+                            customer=profile,
+                            label=form.cleaned_data.get("address_label", ""),
+                            recipient_name=form.cleaned_data["recipient_name"],
+                            mobile_number=form.cleaned_data["mobile_number"],
+                            email=form.cleaned_data.get("email", ""),
+                            postal_code=form.cleaned_data["postal_code"],
+                            address_line1=form.cleaned_data["address_line1"],
+                            address_line2=form.cleaned_data.get("address_line2", ""),
+                            delivery_notes=form.cleaned_data.get("delivery_notes", ""),
+                            is_default=form.cleaned_data.get("set_as_default", False)
+                        )
+                    
+                    # Clear buy-again session data
+                    request.session.pop('buy_again_items', None)
+                    request.session.pop('buy_again_order_id', None)
+                    
+                    # Success message and redirect
+                    messages.success(
+                        request,
+                        f"Order placed successfully! Your order number is #{order.pk}."
+                    )
+                    return redirect("ecommercemodule:order_success", order_id=order.pk)
+                    
+                except Exception as e:
+                    messages.error(
+                        request,
+                        f"There was an error processing your order: {str(e)}. Please try again."
+                    )
+        else:
+            messages.error(request, "Please correct the errors below and try again.")
+    else:
+        # GET request - pre-fill form with user data
+        profile = _get_or_create_profile(request.user)
+        initial_data = {}
+        
+        # Try to load default address first
+        default_address = CustomerAddress.objects.filter(
+            customer=profile,
+            is_default=True
+        ).first()
+        
+        if default_address:
+            # Pre-fill from saved default address
+            initial_data["recipient_name"] = default_address.recipient_name
+            initial_data["mobile_number"] = default_address.mobile_number
+            initial_data["email"] = default_address.email or request.user.email
+            initial_data["postal_code"] = default_address.postal_code
+            initial_data["address_line1"] = default_address.address_line1
+            initial_data["address_line2"] = default_address.address_line2 or ""
+            initial_data["delivery_notes"] = default_address.delivery_notes or ""
+        else:
+            # Fall back to user profile data
+            if request.user.email:
+                initial_data["email"] = request.user.email
+            if request.user.first_name and request.user.last_name:
+                initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
+            elif request.user.username:
+                initial_data["recipient_name"] = request.user.username
+        
+        form = CheckoutForm(initial=initial_data)
+    
+    # Get saved addresses for display
+    saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
+    
+    context = {
+        "form": form,
+        "items": items_data,
+        "cart_total": total_amount,
+        "is_buy_again": True,  # Flag to distinguish from regular checkout
+        "saved_addresses": saved_addresses,
+    }
+    
+    return render(request, "ecommercemodule/checkout.html", context)
 
 
 class AuthFormMixin:
@@ -723,3 +1141,72 @@ def product_search(request):
         "ecommercemodule/product_search.html",
         {"query": query, "products": products},
     )
+
+
+@login_required
+@require_POST
+def review_save(request, product_id):
+    """Create or update the current user's review for a product"""
+    product = get_object_or_404(Product, pk=product_id, is_active=True)
+    
+    # Verify user has purchased this product
+    profile = _get_or_create_profile(request.user)
+    has_purchased = OrderItem.objects.filter(
+        order__customer=profile,
+        order__status=Order.StatusChoices.PAID,
+        product=product
+    ).exists()
+    
+    if not has_purchased:
+        messages.error(request, "You can only review products you have purchased.")
+        # Try to redirect back to referrer
+        referer = request.META.get('HTTP_REFERER')
+        if referer and 'order' in referer:
+            return redirect(referer)
+        return redirect('ecommercemodule:product_detail', pk=product_id)
+    
+    # Check if user already has a review
+    review = Review.objects.filter(product=product, user=request.user).first()
+    
+    form = ReviewForm(request.POST, instance=review)
+    
+    if form.is_valid():
+        review = form.save(commit=False)
+        review.product = product
+        review.user = request.user
+        review.is_public = True  # Default to public
+        review.save()
+        
+        if form.instance.pk:
+            messages.success(request, "Your review has been updated successfully!")
+        else:
+            messages.success(request, "Thank you for your review!")
+    else:
+        # Show form errors
+        for field, errors in form.errors.items():
+            for error in errors:
+                messages.error(request, f"{field}: {error}")
+    
+    # Redirect back to referrer (order detail) or product detail
+    referer = request.META.get('HTTP_REFERER')
+    if referer and 'order' in referer:
+        return redirect(referer)
+    return redirect('ecommercemodule:product_detail', pk=product_id)
+
+
+@login_required
+@require_POST
+def review_delete(request, product_id):
+    """Delete the current user's review for a product"""
+    product = get_object_or_404(Product, pk=product_id, is_active=True)
+    
+    review = get_object_or_404(Review, product=product, user=request.user)
+    review.delete()
+    
+    messages.info(request, "Your review has been deleted.")
+    
+    # Redirect back to referrer (order detail) or product detail
+    referer = request.META.get('HTTP_REFERER')
+    if referer and 'order' in referer:
+        return redirect(referer)
+    return redirect('ecommercemodule:product_detail', pk=product_id)

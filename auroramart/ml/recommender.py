@@ -38,6 +38,7 @@ def _load_rules():
     
     return _loaded_rules
 
+loaded_rules = _load_rules()
 
 def get_recommendations(items, metric='confidence', top_n=5):
     """Use the loaded_rules to extract recommendations.
@@ -45,7 +46,7 @@ def get_recommendations(items, metric='confidence', top_n=5):
     items: list of SKU strings
     Returns: list of recommended SKU strings
     """
-    loaded_rules = _load_rules()
+    
     if loaded_rules is None or not isinstance(loaded_rules, pd.DataFrame):
         return []
     
@@ -86,3 +87,47 @@ def cart_add_on_recommendations(cart_items: Sequence[Product], top_n: int = 4) -
         return []
     # Exclude already in cart
     return list(Product.objects.filter(sku__in=rec_skus, is_active=True).exclude(sku__in=skus))
+
+
+def category_exploration_recommendations(category_slug: str, top_n: int = 4) -> List[Product]:
+    """Get category-based exploration recommendations using association rules.
+    
+    Args:
+        category_slug: The category slug to get recommendations for
+        top_n: Number of recommendations to return
+    
+    Returns:
+        List of recommended Product objects from the same or related categories
+    """
+    from auroramart.models import Category, Product as ProductModel
+    
+    try:
+        category = Category.objects.get(slug=category_slug)
+        # Get some popular products from this category as seed
+        seed_products = list(
+            ProductModel.objects.filter(
+                category=category,
+                is_active=True,
+                quantity_on_hand__gt=0
+            ).order_by('-rating', '-quantity_on_hand')[:3]
+        )
+        
+        if not seed_products:
+            return []
+        
+        seed_skus = [p.sku for p in seed_products]
+        rec_skus = get_recommendations(seed_skus, metric='lift', top_n=top_n * 2)
+        
+        if not rec_skus:
+            return []
+        
+        # Get recommended products, exclude seed products
+        return list(
+            ProductModel.objects.filter(
+                sku__in=rec_skus,
+                is_active=True,
+                quantity_on_hand__gt=0
+            ).exclude(sku__in=seed_skus)[:top_n]
+        )
+    except Exception:
+        return []

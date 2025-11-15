@@ -1,27 +1,137 @@
 {% extends "ecommercemodule/base.html" %}
-{% block title %}Profile{% endblock %}
+{% block title %}My Profile | AuroraMart{% endblock %}
 {% block content %}
-<h3>Your Profile</h3>
-<table class="table table-striped">
-    <tr><th>Username</th><td>{{ profile.user.username }}</td></tr>
-    <tr><th>Email</th><td>{{ profile.user.email }}</td></tr>
-    <tr><th>Age</th><td>{{ profile.age|default:"—" }}</td></tr>
-    <tr><th>Gender</th><td>{{ profile.gender|default:"—" }}</td></tr>
-    <tr><th>Employment Status</th><td>{{ profile.employment_status|default:"—" }}</td></tr>
-    <tr><th>Occupation</th><td>{{ profile.occupation|default:"—" }}</td></tr>
-    <tr><th>Education</th><td>{{ profile.education|default:"—" }}</td></tr>
-    <tr><th>Household Size</th><td>{{ profile.household_size|default:"—" }}</td></tr>
-    <tr><th>Has Children</th><td>{{ profile.has_children|yesno:"Yes,No" }}</td></tr>
-    <tr><th>Monthly Income (SGD)</th><td>{{ profile.monthly_income_sgd|default:"—" }}</td></tr>
-    <tr><th>Preferred Category</th><td>{{ profile.preferred_category|default:"—" }}</td></tr>
-</table>
-<div class="d-flex gap-2">
-    <a class="btn btn-outline-primary" href="{% url 'store:profile_edit' %}">Edit Profile</a>
-    <form action="{% url 'store:deactivate_account' %}" method="post" onsubmit="return confirm('Deactivate account? This will log you out.');">
-        {% csrf_token %}
-        <button class="btn btn-outline-danger">Deactivate Account</button>
-    </form>
+<div class="container py-4">
+    <div class="row">
+        <!-- Profile Header -->
+        <div class="col-12 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <h2 class="mb-1">{{ profile.user.username }}</h2>
+                        <p class="text-muted mb-0"><i class="bi bi-envelope me-2"></i>{{ profile.user.email }}</p>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a class="btn btn-primary" href="{% url 'store:profile_edit' %}">
+                            <i class="bi bi-pencil-square me-2"></i>Edit Profile
+                        </a>
+                        <a class="btn btn-outline-primary" href="{% url 'store:order_history' %}">
+                            <i class="bi bi-box-seam me-2"></i>Order History
+                        </a>
+                        <button type="button" class="btn btn-outline-danger ms-auto" data-bs-toggle="modal" data-bs-target="#deactivateModal">
+                            <i class="bi bi-trash3 me-2"></i>Delete Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Personal Information -->
+        <div class="col-12 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0"><i class="bi bi-person-circle me-2 text-primary"></i>Personal Information</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Age</span>
+                        <span class="fw-semibold">{{ profile.age|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Gender</span>
+                        <span class="fw-semibold">{{ profile.gender|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Employment Status</span>
+                        <span class="fw-semibold">{{ profile.employment_status|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Occupation</span>
+                        <span class="fw-semibold">{{ profile.occupation|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Education Level</span>
+                        <span class="fw-semibold">{{ profile.education|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Household Size</span>
+                        <span class="fw-semibold">{{ profile.household_size|default:"—" }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Has Children</span>
+                        <span class="fw-semibold">
+                            {% if profile.has_children %}
+                                <span class="badge bg-success-subtle text-success">Yes</span>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">No</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                        <span class="text-muted">Monthly Income (SGD)</span>
+                        <span class="fw-semibold">
+                            {% if profile.monthly_income_sgd %}
+                                ${{ profile.monthly_income_sgd|floatformat:2 }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Preferred Category</span>
+                        <span class="fw-semibold">
+                            {% if profile.preferred_category %}
+                                <span class="badge bg-primary-subtle text-primary px-3 py-2">
+                                    <i class="bi bi-star-fill me-1"></i>{{ profile.preferred_category }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted fst-italic">Not yet determined</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
-<hr>
-<a href="{% url 'store:order_history' %}">View past orders</a>
+
+<!-- Deactivation Confirmation Modal -->
+<div class="modal fade" id="deactivateModal" tabindex="-1" aria-labelledby="deactivateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-danger text-white border-0">
+        <h5 class="modal-title" id="deactivateModalLabel">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Permanently Delete Account
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+          <i class="bi bi-exclamation-octagon-fill fs-5 me-3"></i>
+          <div><strong>Warning:</strong> This action is irreversible!</div>
+        </div>
+        <p class="mb-3">Are you sure you want to permanently delete your account?</p>
+        <p class="mb-3"><strong>All of the following data will be lost forever:</strong></p>
+        <ul class="mb-3">
+          <li>Your profile information</li>
+          <li>Order history and purchase records</li>
+          <li>Product reviews and ratings</li>
+          <li>Saved addresses</li>
+          <li>Shopping cart contents</li>
+          <li>Any other personal data</li>
+        </ul>
+        <p class="text-danger fw-bold mb-0">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form action="{% url 'store:deactivate_account' %}" method="post" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash3 me-2"></i>Yes, Delete My Account Permanently
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

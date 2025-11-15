@@ -408,7 +408,7 @@ const dailyOrders = dailyStatsData.map(d => d.orders);
 
 // Daily Sales & Orders Chart (Combo: Bar + Line)
 const dailySalesCtx = document.getElementById('dailySalesChart').getContext('2d');
-new Chart(dailySalesCtx, {
+new Chart(dailySalesCtx, {  
     type: 'bar',
     data: {
         labels: dailyLabels,

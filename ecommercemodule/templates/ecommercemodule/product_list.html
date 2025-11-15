@@ -111,6 +111,51 @@
                 </ul>
             </nav>
             {% endif %}
+            
+            {# Tasteful exploration recommendations at bottom of page #}
+            {% if exploration_recommendations %}
+            <div class="mt-5">
+                <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                    <div class="card-body py-4">
+                        <div class="d-flex align-items-center mb-4">
+                            <i class="bi bi-compass text-primary me-2" style="font-size: 1.5rem;"></i>
+                            <div>
+                                <h5 class="mb-0">Other {{ category.name }} buyers also explored…</h5>
+                                <p class="text-muted small mb-0">Discover more great finds</p>
+                            </div>
+                        </div>
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4">
+                            {% for rec_product in exploration_recommendations %}
+                            <div class="col">
+                                <a href="{% url 'store:product_detail' rec_product.pk %}" class="text-decoration-none">
+                                    <div class="card h-100 border shadow-sm hover-card" style="transition: all 0.3s ease;">
+                                        {% if rec_product.get_image_url %}
+                                            <img src="{{ rec_product.get_image_url }}" class="card-img-top object-fit-cover" style="height: 180px;" alt="{{ rec_product.name }}">
+                                        {% else %}
+                                            <div class="card-img-top d-flex align-items-center justify-content-center bg-white" style="height: 180px;">
+                                                <i class="bi bi-image text-muted" style="font-size: 2.5rem;"></i>
+                                            </div>
+                                        {% endif %}
+                                        <div class="card-body">
+                                            <h6 class="card-title text-truncate-2" style="display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 3rem;">
+                                                {{ rec_product.name }}
+                                            </h6>
+                                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                                <p class="text-primary fw-bold mb-0 fs-5">${{ rec_product.unit_price }}</p>
+                                                {% if rec_product.rating %}
+                                                    <span class="badge bg-warning text-dark">★ {{ rec_product.rating|floatformat:1 }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </section>
