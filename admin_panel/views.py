@@ -1204,8 +1204,39 @@ def order_update_status(request, pk):
         new_status = request.POST.get('status')
         valid_statuses = [choice[0] for choice in Order.StatusChoices.choices]
         if new_status in valid_statuses:
+            previous_status = order.status
             order.status = new_status
             order.save()
+
+            # If the order was cancelled now (and wasn't cancelled before), restore inventory quantities
+            if new_status == Order.StatusChoices.CANCELLED and previous_status != Order.StatusChoices.CANCELLED:
+                for item in order.items.select_related('product').all():
+                    prod = item.product
+                    # add back the cancelled quantity
+                    prod.quantity_on_hand = (prod.quantity_on_hand or 0) + (item.quantity or 0)
+                    prod.save()
+
+                    # Create an incoming InventoryHistory entry to reflect the restock, but avoid duplicates
+                    if not InventoryHistory.objects.filter(product=prod, movement_type='incoming', reference_id=order.pk).exists():
+                        note = f"Restored from order #{order.pk}"
+                        InventoryHistory.objects.create(
+                            product=prod,
+                            movement_type='incoming',
+                            quantity=item.quantity,
+                            reference_id=order.pk,
+                            notes=note + " (Cancelled)",
+                        )
+
+                    # Find any outgoing inventory history linked to this order and append (Cancelled) to its notes
+                    outgoing_qs = InventoryHistory.objects.filter(
+                        product=prod, movement_type='outgoing', reference_id=order.pk
+                    )
+                    for rec in outgoing_qs:
+                        existing = rec.notes or ''
+                        if '(Cancelled)' not in existing:
+                            rec.notes = (existing + ' ' + '(Cancelled)').strip()
+                            rec.save()
+
             messages.success(request, f"Order #{order.pk} status updated to {new_status}.")
         else:
             messages.error(request, "Invalid status selected.")

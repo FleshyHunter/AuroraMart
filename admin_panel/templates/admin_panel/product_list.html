@@ -88,8 +88,8 @@
         <table class="table table-hover align-middle">
             <thead class="table-dark">
                 <tr>
-                    <th style="width: 80px;">Image</th>
-                    <th>
+                    <th class="align-middle" style="width: 80px;">Image</th>
+                    <th class="align-middle">
                         Name
                         <a href="?name_order={% if name_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -102,8 +102,8 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th>SKU</th>
-                    <th>
+                    <th class="align-middle">SKU</th>
+                    <th class="align-middle">
                         Price
                         <a href="?price_order={% if price_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -116,7 +116,7 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th>
+                    <th class="align-middle">
                         Category
                         <a href="?category_order={% if category_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -129,7 +129,7 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th>
+                    <th class="align-middle">
                         Subcategory
                         <a href="?subcategory_order={% if subcategory_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -142,7 +142,7 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th class="text-center">
+                    <th class="text-center align-middle">
                         Stock
                         <a href="?stock_order={% if stock_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -155,7 +155,7 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th class="text-center">
+                    <th class="text-center align-middle">
                         Rating
                         <a href="?rating_order={% if rating_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -168,7 +168,7 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th class="text-center">
+                    <th class="text-center align-middle">
                         Status
                         <a href="?status_order={% if status_order == 'asc' %}desc{% else %}asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" 
                            class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
@@ -181,7 +181,7 @@
                             {% endif %}
                         </a>
                     </th>
-                    <th class="text-center">Actions</th>
+                    <th class="text-center align-middle">Actions</th>
                 </tr>
             </thead>
             <tbody>
