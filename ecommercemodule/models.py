@@ -1,10 +1,17 @@
 from decimal import Decimal
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
 
 from auroramart.models import Category, Customer, Product
+
+User = get_user_model()
+
+# Validators for CustomerAddress
+phone_validator = RegexValidator(r'^\+?\d{8,15}$', "Enter a valid phone number.")
+postal_validator = RegexValidator(r'^\d{6}$', "Enter a 6-digit Singapore postal code.")
 
 
 class Order(models.Model):
@@ -132,3 +139,115 @@ class CartItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.product.name} ({self.quantity})"
+
+
+class Review(models.Model):
+    """Per-user product review without modifying Product model"""
+    RATING_CHOICES = [
+        (1, '1 Star'),
+        (2, '2 Stars'),
+        (3, '3 Stars'),
+        (4, '4 Stars'),
+        (5, '5 Stars'),
+    ]
+    
+    product = models.ForeignKey(
+        Product, 
+        related_name="reviews", 
+        on_delete=models.CASCADE
+    )
+    user = models.ForeignKey(
+        User,
+        related_name="reviews",
+        on_delete=models.CASCADE
+    )
+    rating = models.PositiveSmallIntegerField(
+        choices=RATING_CHOICES,
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    body = models.TextField(verbose_name="Review")
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [["product", "user"]]
+        indexes = [
+            models.Index(fields=["product", "-created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+        ]
+    
+    def clean(self):
+        errors = {}
+        if not 1 <= self.rating <= 5:
+            errors["rating"] = "Rating must be between 1 and 5."
+        if not self.body or not self.body.strip():
+            errors["body"] = "Review cannot be empty."
+        if errors:
+            raise ValidationError(errors)
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+    
+    def __str__(self) -> str:
+        return f"{self.user.username}'s review of {self.product.name} ({self.rating}★)"
+
+
+class CustomerAddress(models.Model):
+    """Saved address for customers to reuse at checkout"""
+    customer = models.ForeignKey(
+        Customer, 
+        on_delete=models.CASCADE, 
+        related_name="addresses"
+    )
+    label = models.CharField(
+        max_length=50, 
+        blank=True,
+        help_text="e.g., 'Home' or 'Work'"
+    )
+    recipient_name = models.CharField(max_length=255)
+    mobile_number = models.CharField(max_length=20, validators=[phone_validator])
+    email = models.EmailField(blank=True, null=True)
+    postal_code = models.CharField(max_length=6, validators=[postal_validator])
+    address_line1 = models.CharField(max_length=255)
+    address_line2 = models.CharField(max_length=255, blank=True, null=True)
+    delivery_notes = models.TextField(blank=True, null=True)
+    is_default = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["-is_default", "-updated_at"]
+        verbose_name = "Customer Address"
+        verbose_name_plural = "Customer Addresses"
+    
+    def clean(self):
+        errors = {}
+        if not self.recipient_name or not self.recipient_name.strip():
+            errors["recipient_name"] = "Recipient name is required."
+        if not self.mobile_number or not self.mobile_number.strip():
+            errors["mobile_number"] = "Mobile number is required."
+        if not self.postal_code or not self.postal_code.strip():
+            errors["postal_code"] = "Postal code is required."
+        if not self.address_line1 or not self.address_line1.strip():
+            errors["address_line1"] = "Address line 1 is required."
+        if errors:
+            raise ValidationError(errors)
+    
+    def save(self, *args, **kwargs):
+        # If this address is being set as default, unset other defaults
+        if self.is_default:
+            CustomerAddress.objects.filter(
+                customer=self.customer,
+                is_default=True
+            ).exclude(pk=self.pk).update(is_default=False)
+        
+        self.full_clean()
+        return super().save(*args, **kwargs)
+    
+    def __str__(self) -> str:
+        label = self.label or "Address"
+        return f"{label} ({self.postal_code})"

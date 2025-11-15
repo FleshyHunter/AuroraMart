@@ -1,7 +1,7 @@
 """
 Management command to populate product image URLs using a static mapping.
 
-This command no longer scrapes Google. Instead, it uses a
+This command uses a
 CATEGORY_IMAGE_MAP dict that maps (category, subcategory) to a
 high-quality static image URL. For any product with no image_url, the
 command will set it using this map. Products without a mapping are
@@ -29,7 +29,7 @@ CATEGORY_IMAGE_MAP = {
     ("technology", "smartphones"): "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&auto=format&fit=crop&q=80",
     ("technology", "laptops"): "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&auto=format&fit=crop&q=80",
     ("technology", "tablets"): "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=1200&auto=format&fit=crop&q=80",
-    ("technology", "cameras"): "https://images.unsplash.com/photo-1519183071298-a2962be96f83?w=1200&auto=format&fit=crop&q=80",
+    ("technology", "cameras"): "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=1200&auto=format&fit=crop&q=80",
     ("technology", "audio"): "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1200&auto=format&fit=crop&q=80",
     ("technology", "wearables"): "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=1200&auto=format&fit=crop&q=80",
     ("technology", "accessories"): "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=1200&auto=format&fit=crop&q=80",
@@ -39,7 +39,7 @@ CATEGORY_IMAGE_MAP = {
     ("electronics", "smartphones"): "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=1200&auto=format&fit=crop&q=80",
     ("electronics", "laptops"): "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&auto=format&fit=crop&q=80",
     ("electronics", "tablets"): "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=1200&auto=format&fit=crop&q=80",
-    ("electronics", "cameras"): "https://images.unsplash.com/photo-1519183071298-a2962be96f83?w=1200&auto=format&fit=crop&q=80",
+    ("electronics", "cameras"): "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=1200&auto=format&fit=crop&q=80",
     ("electronics", None): "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&auto=format&fit=crop&q=80",
 
     # Office & Computers
@@ -118,7 +118,7 @@ CATEGORY_IMAGE_MAP = {
     # Toys & Games
     ("toys & games", "building"): "https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=1200&auto=format&fit=crop&q=80",
     ("toys & games", "building sets"): "https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=1200&auto=format&fit=crop&q=80",
-    ("toys & games", "puzzles"): "https://images.unsplash.com/photo-1514415679929-1fd5193f8aaf?w=1200&auto=format&fit=crop&q=80",
+    ("toys & games", "puzzles"): "https://images.unsplash.com/photo-1587731556938-38755b4803a6?w=1200&auto=format&fit=crop&q=80",
     ("toys & games", "board games"): "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=1200&auto=format&fit=crop&q=80",
     ("toys & games", "family"): "https://images.unsplash.com/photo-1629197520535-ee1574dd2d32?w=1200&auto=format&fit=crop&q=80",
     ("toys & games", None): "https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=1200&auto=format&fit=crop&q=80",
@@ -129,8 +129,11 @@ CATEGORY_IMAGE_MAP = {
     ("automotive", None): "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=1200&auto=format&fit=crop&q=80",
 
     # Pet Supplies
-    ("pet supplies", "dogs"): "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=1200&auto=format&fit=crop&q=80",
-    ("pet supplies", "cats"): "https://images.unsplash.com/photo-1545249390-6bdfa286032f?w=1200&auto=format&fit=crop&q=80",
+    ("pet supplies", "accessories"): "https://images.unsplash.com/photo-1568640347023-a616a30bc3bd?w=1200&auto=format&fit=crop&q=80",
+    ("pet supplies", "aquatic"): "https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=1200&auto=format&fit=crop&q=80",
+    ("pet supplies", "cat"): "https://images.unsplash.com/photo-1545249390-6bdfa286032f?w=1200&auto=format&fit=crop&q=80",
+    ("pet supplies", "dog"): "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=1200&auto=format&fit=crop&q=80",
+    ("pet supplies", "small pets"): "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=1200&auto=format&fit=crop&q=80",
     ("pet supplies", None): "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=1200&auto=format&fit=crop&q=80",
 
     # Health & Household

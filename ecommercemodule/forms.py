@@ -7,96 +7,14 @@ from django.contrib.auth.forms import (
 )
 
 from auroramart.models import Customer
+from .models import Review
 
 User = get_user_model()
 
 
-class RegistrationForm(UserCreationForm):
-    username = forms.CharField(
-        min_length=4,
-        max_length=30,
-        help_text="Use 4-30 characters.",
-        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "username"}),
-    )
-    email = forms.EmailField(
-        required=True,
-        widget=forms.EmailInput(attrs={"class": "form-control", "autocomplete": "email"}),
-    )
-
-    class Meta(UserCreationForm.Meta):
-        model = User
-        fields = ("username", "email", "password1", "password2")
-
-    def clean_email(self):
-        email = self.cleaned_data["email"].strip().lower()
-        if User.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError("An account with this email already exists.")
-        return email
-
-
-class LoginForm(forms.Form):
-    username = forms.CharField(
-        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "username"})
-    )
-    password = forms.CharField(
-        widget=forms.PasswordInput(
-            attrs={"class": "form-control", "autocomplete": "current-password"}
-        )
-    )
-
-    def clean(self):
-        cleaned = super().clean()
-        username = cleaned.get("username")
-        password = cleaned.get("password")
-        if username and password:
-            user = authenticate(username=username, password=password)
-            if not user or not user.is_active:
-                raise forms.ValidationError("Invalid username or password.")
-            self.user = user
-        return cleaned
-
-    def get_user(self):
-        return getattr(self, "user", None)
-
-
 class CustomerForm(forms.ModelForm):
-    class Meta:
-        model = Customer
-        fields = [
-            "age",
-            "gender",
-            "employment_status",
-            "occupation",
-            "education",
-            "household_size",
-            "has_children",
-            "monthly_income_sgd",
-            "preferred_category",
-        ]
-        widgets = {
-            "preferred_category": forms.Select(attrs={"class": "form-select"}),
-        }
-
-    def clean_age(self):
-        age = self.cleaned_data.get("age")
-        if age is not None and not 18 <= age <= 100:
-            raise forms.ValidationError("Age must be between 18 and 100.")
-        return age
-
-    def clean_household_size(self):
-        size = self.cleaned_data.get("household_size")
-        if size is not None and size < 1:
-            raise forms.ValidationError("Household size must be at least 1.")
-        return size
-
-    def clean_monthly_income_sgd(self):
-        income = self.cleaned_data.get("monthly_income_sgd")
-        if income is not None and income < 0:
-            raise forms.ValidationError("Monthly income must be zero or higher.")
-        return income
-
-
-class ProfileCompletionForm(forms.ModelForm):
+    """Form for customer profile management (both creation and updates)"""
+    
     GENDER_CHOICES = [
         ('', 'Select your gender'),
         ('Male', 'Male'),
@@ -214,6 +132,54 @@ class ProfileCompletionForm(forms.ModelForm):
         return income
 
 
+class RegistrationForm(UserCreationForm):
+    username = forms.CharField(
+        min_length=4,
+        max_length=30,
+        help_text="Use 4-30 characters.",
+        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "username"}),
+    )
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={"class": "form-control", "autocomplete": "email"}),
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("username", "email", "password1", "password2")
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("An account with this email already exists.")
+        return email
+
+
+class LoginForm(forms.Form):
+    username = forms.CharField(
+        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "username"})
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "autocomplete": "current-password"}
+        )
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        username = cleaned.get("username")
+        password = cleaned.get("password")
+        if username and password:
+            user = authenticate(username=username, password=password)
+            if not user or not user.is_active:
+                raise forms.ValidationError("Invalid username or password.")
+            self.user = user
+        return cleaned
+
+    def get_user(self):
+        return getattr(self, "user", None)
+
+
 class AddToCartForm(forms.Form):
     quantity = forms.IntegerField(
         min_value=1,
@@ -320,6 +286,37 @@ class CheckoutForm(forms.Form):
             "class": "form-control",
             "placeholder": "Any special instructions for delivery...",
             "rows": 3
+        })
+    )
+    
+    # ========================================
+    # Save Address Option
+    # ========================================
+    save_address = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Save this address for future orders",
+        widget=forms.CheckboxInput(attrs={
+            "class": "form-check-input"
+        })
+    )
+    
+    address_label = forms.CharField(
+        max_length=50,
+        required=False,
+        label="Address Label (e.g., Home, Work)",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Optional: Give this address a label"
+        })
+    )
+    
+    set_as_default = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Set as my default address",
+        widget=forms.CheckboxInput(attrs={
+            "class": "form-check-input"
         })
     )
     
@@ -515,7 +512,7 @@ class CheckoutForm(forms.Form):
 
 class StorePasswordResetForm(PasswordResetForm):
     """
-    Swallows “email not found” errors while still logging the attempt so
+    Swallows "email not found" errors while still logging the attempt so
     we can show a generic success message.
     """
 
@@ -530,3 +527,41 @@ class StorePasswordResetForm(PasswordResetForm):
         if not getattr(self, "_users_cache", []):
             return None
         return super().save(*args, **kwargs)
+
+
+class ReviewForm(forms.ModelForm):
+    """Form for creating/editing product reviews with interactive star rating"""
+    
+    rating = forms.IntegerField(
+        min_value=1,
+        max_value=5,
+        widget=forms.HiddenInput(attrs={'id': 'rating-value'}),
+        label="Rate this product"
+    )
+    
+    body = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'placeholder': 'Share your thoughts about this product...',
+            'rows': 4
+        }),
+        label="Your Review"
+    )
+    
+    class Meta:
+        model = Review
+        fields = ['rating', 'body']
+    
+    def clean_rating(self):
+        rating = self.cleaned_data.get('rating')
+        if not rating or not 1 <= rating <= 5:
+            raise forms.ValidationError('Please select a star rating between 1 and 5.')
+        return rating
+    
+    def clean_body(self):
+        body = self.cleaned_data.get('body', '').strip()
+        if not body:
+            raise forms.ValidationError('Review cannot be empty.')
+        if len(body) < 10:
+            raise forms.ValidationError('Review must be at least 10 characters long.')
+        return body

@@ -38,6 +38,7 @@ def _load_model():
     
     return _loaded_model
 
+model = _load_model()
 
 def predict_preferred_category(customer_data):
     """Predict the preferred category for a customer.
@@ -49,37 +50,79 @@ def predict_preferred_category(customer_data):
     Returns:
         Predicted category string or None if prediction fails
     """
-    model = _load_model()
+    
     if model is None:
         return None
     
     try:
-        columns = {
-            'age':'int64', 'household_size':'int64', 'has_children':'int64', 'monthly_income_sgd':'float64',
-            'gender_Female':'bool', 'gender_Male':'bool', 'employment_status_Full-time':'bool',
-            'employment_status_Part-time':'bool', 'employment_status_Retired':'bool',
-            'employment_status_Self-employed':'bool', 'employment_status_Student':'bool',
-            'occupation_Admin':'bool', 'occupation_Education':'bool', 'occupation_Sales':'bool',
-            'occupation_Service':'bool', 'occupation_Skilled Trades':'bool', 'occupation_Tech':'bool',
-            'education_Bachelor':'bool', 'education_Diploma':'bool', 'education_Doctorate':'bool',
-            'education_Master':'bool', 'education_Secondary':'bool'
-        }
-
-        df = pd.DataFrame({col: pd.Series(dtype=dtype) for col, dtype in columns.items()})
-        customer_df = pd.DataFrame([customer_data])
-        customer_encoded = pd.get_dummies(customer_df, columns=['gender', 'employment_status', 'occupation', 'education'])    
-
-        for col in df.columns:
-            if col not in customer_encoded.columns:
-                if df[col].dtype == bool:
-                    df[col] = False
-                else:
-                    df[col] = 0
-            else:
-                df[col] = customer_encoded[col]
+        # Convert has_children to int if it's boolean
+        if isinstance(customer_data.get('has_children'), bool):
+            customer_data['has_children'] = 1 if customer_data['has_children'] else 0
         
-        prediction = model.predict(df)    
+        # Convert raw input to DataFrame
+        input_df = pd.DataFrame([customer_data])
+        
+        # One-hot encode categorical variables to match training data columns
+        input_encoded = pd.get_dummies(input_df, columns=['gender', 'employment_status', 'occupation', 'education'])
+        
+        # Get the feature names from the model (these are the columns used during training)
+        model_features = model.feature_names_in_
+        
+        # Ensure all required columns are present, add missing columns as False/0
+        for col in model_features:
+            if col not in input_encoded.columns:
+                input_encoded[col] = 0
+        
+        # Reorder columns to match training data
+        input_encoded = input_encoded[model_features]
+        
+        # Now input_encoded can be used for prediction
+        prediction = model.predict(input_encoded)
         return prediction[0] if len(prediction) > 0 else None
     
     except Exception:
+        return None
+
+
+def predict_customer_preferred_category(customer):
+    """Predict the preferred category for a Customer instance.
+    
+    Args:
+        customer: Customer model instance
+    
+    Returns:
+        Category instance or None if prediction fails or customer data is incomplete
+    """
+    from auroramart.models import Category
+    
+    if not all([
+        customer.age,
+        customer.household_size is not None,
+        customer.has_children is not None,
+        customer.monthly_income_sgd,
+        customer.gender,
+        customer.employment_status,
+        customer.occupation,
+        customer.education
+    ]):
+        return None
+    
+    customer_data = {
+        'age': customer.age,
+        'household_size': customer.household_size,
+        'has_children': customer.has_children,
+        'monthly_income_sgd': float(customer.monthly_income_sgd),
+        'gender': customer.gender,
+        'employment_status': customer.employment_status,
+        'occupation': customer.occupation,
+        'education': customer.education
+    }
+    
+    predicted_name = predict_preferred_category(customer_data)
+    if not predicted_name:
+        return None
+    
+    try:
+        return Category.objects.get(name=predicted_name)
+    except Category.DoesNotExist:
         return None
