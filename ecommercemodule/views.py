@@ -22,6 +22,7 @@ from .forms import (
     CheckoutConfirmForm,
     CheckoutForm,
     CustomerForm,
+    CustomerAddressForm,
     LoginForm,
     RegistrationForm,
     ReviewForm,
@@ -195,7 +196,7 @@ def product_search(request):
     products = Product.objects.none()
     if query:
         products = Product.objects.filter(
-            Q(name__icontains=query) | Q(description__icontains=query),
+            Q(name__icontains=query) | Q(description__icontains=query) | Q(sku__icontains=query),
             is_active=True,
         )
     return render(
@@ -241,11 +242,9 @@ def product_detail(request, pk):
             # Only show form if user has purchased the product
             review_form = ReviewForm()
     
-    suggested_products = (
-        Product.objects.filter(subcategory=product.subcategory, is_active=True)
-        .exclude(pk=product.pk)[:4]
-    )
-    # Frequently bought together via association rules (best effort)
+    # Remove non-ML suggestions - only show ML-based recommendations
+    suggested_products = []
+    # Frequently bought together via association rules (ML-based only)
     fbt_products = list(ml_fbt(product, top_n=4))
     form = AddToCartForm()
     quantity_widget = form.fields["quantity"].widget
@@ -333,7 +332,11 @@ def logout_view(request):
 @login_required
 def profile_view(request):
     profile = _get_or_create_profile(request.user)
-    return render(request, "ecommercemodule/profile.html", {"profile": profile})
+    saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
+    return render(request, "ecommercemodule/profile.html", {
+        "profile": profile,
+        "saved_addresses": saved_addresses
+    })
 
 
 @login_required
@@ -443,7 +446,7 @@ def view_cart(request):
         widget_attrs["class"] = "form-control form-control-sm text-center"
         rows.append((item, form))
     
-    # Add-on suggestions based on current basket using ML recommendations
+    # Add-on suggestions based on current basket using ML recommendations only
     addon_products = []
     if items:
         try:
@@ -451,31 +454,9 @@ def view_cart(request):
             addon_products = list(
                 ml_cart_recs([i.product for i in items], top_n=4)
             )
-        except Exception as e:
-            # Log error if needed
+        except Exception:
+            # No fallback - only show ML recommendations
             addon_products = []
-    
-    # Fallback: if ML didn't return results or cart is empty, show popular products
-    if not addon_products:
-        # Get products from the same categories as items in cart
-        if items:
-            category_ids = set(item.product.category_id for item in items)
-            product_ids_in_cart = [item.product_id for item in items]
-            addon_products = list(
-                Product.objects.filter(
-                    category_id__in=category_ids,
-                    is_active=True,
-                    quantity_on_hand__gt=0
-                )
-                .exclude(id__in=product_ids_in_cart)
-                .order_by('-rating', 'name')[:4]
-            )
-        else:
-            # If cart is empty, show top-rated products
-            addon_products = list(
-                Product.objects.filter(is_active=True, quantity_on_hand__gt=0)
-                .order_by('-rating', 'name')[:4]
-            )
     
     return render(
         request,
@@ -1123,8 +1104,11 @@ class AuthFormMixin:
 class PasswordResetRequestView(AuthFormMixin, PasswordResetView):
     title = "Reset Password"
     submit_label = "Send Reset Link"
-    form_class =StorePasswordResetForm
+    form_class = StorePasswordResetForm
+    template_name = "ecommercemodule/auth_form.html"
     email_template_name = "ecommercemodule/email/password_reset_email.txt"
+    html_email_template_name = "ecommercemodule/email/password_reset_email.html"
+    subject_template_name = "ecommercemodule/email/password_reset_subject.txt"
     success_url = reverse_lazy("ecommercemodule:login")
 
     def form_valid(self, form):
@@ -1148,14 +1132,13 @@ class PasswordChangeSlim(AuthFormMixin, LoginRequiredMixin, PasswordChangeView):
     def form_valid(self, form):
         messages.success(self.request, "Password updated successfully.")
         return super().form_valid(form)
-    template_name = "ecommercemodule/password_change_done.html"
 
 def product_search(request):
     query = (request.GET.get("q") or "").strip()
     products = Product.objects.none()
     if query:
         products = Product.objects.filter(
-            Q(name__icontains=query) | Q(description__icontains=query),
+            Q(name__icontains=query) | Q(description__icontains=query) | Q(sku__icontains=query),
             is_active=True,
         )
     return render(
@@ -1232,3 +1215,83 @@ def review_delete(request, product_id):
     if referer and 'order' in referer:
         return redirect(referer)
     return redirect('ecommercemodule:product_detail', pk=product_id)
+
+
+@login_required
+def address_add(request):
+    """Add a new saved address"""
+    profile = _get_or_create_profile(request.user)
+    
+    if request.method == 'POST':
+        form = CustomerAddressForm(request.POST)
+        if form.is_valid():
+            address = form.save(commit=False)
+            address.customer = profile
+            address.save()
+            messages.success(request, "Address saved successfully!")
+            return redirect('ecommercemodule:profile')
+    else:
+        # Pre-fill with user data
+        initial_data = {
+            'recipient_name': request.user.get_full_name() or request.user.username,
+            'email': request.user.email
+        }
+        form = CustomerAddressForm(initial=initial_data)
+    
+    return render(request, 'ecommercemodule/address_form.html', {
+        'form': form,
+        'title': 'Add New Address'
+    })
+
+
+@login_required
+def address_edit(request, address_id):
+    """Edit an existing saved address"""
+    profile = _get_or_create_profile(request.user)
+    address = get_object_or_404(CustomerAddress, pk=address_id, customer=profile)
+    
+    if request.method == 'POST':
+        form = CustomerAddressForm(request.POST, instance=address)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Address updated successfully!")
+            return redirect('ecommercemodule:profile')
+    else:
+        form = CustomerAddressForm(instance=address)
+    
+    return render(request, 'ecommercemodule/address_form.html', {
+        'form': form,
+        'title': 'Edit Address',
+        'address': address
+    })
+
+
+@login_required
+@require_POST
+def address_delete(request, address_id):
+    """Delete a saved address"""
+    profile = _get_or_create_profile(request.user)
+    address = get_object_or_404(CustomerAddress, pk=address_id, customer=profile)
+    
+    address_label = address.label or 'Address'
+    address.delete()
+    messages.info(request, f"{address_label} has been deleted.")
+    return redirect('ecommercemodule:profile')
+
+
+@login_required
+@require_POST
+def address_set_default(request, address_id):
+    """Set an address as the default"""
+    profile = _get_or_create_profile(request.user)
+    address = get_object_or_404(CustomerAddress, pk=address_id, customer=profile)
+    
+    # Unset other defaults
+    CustomerAddress.objects.filter(customer=profile, is_default=True).update(is_default=False)
+    
+    # Set this one as default
+    address.is_default = True
+    address.save()
+    
+    messages.success(request, f"{address.label or 'Address'} set as default.")
+    return redirect('ecommercemodule:profile')

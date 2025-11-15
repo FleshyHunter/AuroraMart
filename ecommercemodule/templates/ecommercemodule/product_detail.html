@@ -96,7 +96,6 @@
     </div>
 </div>
 <section class="section-spacing mt-5 pt-4 border-top">
-    {% if fbt_products %}
     <div class="d-flex align-items-center justify-content-between mb-3">
         <h4 class="mb-0">Frequently bought together</h4>
     </div>
@@ -126,9 +125,12 @@
                 </div>
             </div>
         </div>
+        {% empty %}
+        <div class="col-12">
+            <p class="text-muted mb-0">No suggestions available.</p>
+        </div>
         {% endfor %}
     </div>
-    {% endif %}
     
     <!-- Customer Reviews Section -->
     <div class="mt-5 pt-4 border-top">
@@ -213,35 +215,6 @@
             </div>
         </div>
         {% endif %}
-    </div>
-    
-    <div class="d-flex align-items-center justify-content-between mb-3 mt-5">
-        <h4 class="mb-0">You may also like</h4>
-        <a class="btn btn-link btn-sm text-decoration-none" href="{% url 'ecommercemodule:category_list' %}">Browse more</a>
-    </div>
-    <div class="row g-3">
-        {% for suggestion in suggested_products %}
-        <div class="col-12 col-sm-6 col-lg-3">
-            <div class="card h-100 shadow-sm hover-card">
-                {% if suggestion.get_image_url %}
-                    <img src="{{ suggestion.get_image_url }}" class="card-img-top object-fit-cover" style="height: 180px;" alt="{{ suggestion.name }}">
-                {% else %}
-                    <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="height: 180px;">
-                        <i class="bi bi-image text-muted" style="font-size: 2.5rem;"></i>
-                    </div>
-                {% endif %}
-                <div class="card-body d-flex flex-column">
-                    <h6 class="fw-semibold">{{ suggestion.name }}</h6>
-                    <p class="text-muted mb-3">${{ suggestion.unit_price|floatformat:2 }}</p>
-                    <a class="btn btn-outline-primary btn-sm mt-auto" href="{% url 'store:product_detail' suggestion.pk %}">View</a>
-                </div>
-            </div>
-        </div>
-        {% empty %}
-        <div class="col-12">
-            <p class="text-muted mb-0">No suggestions available.</p>
-        </div>
-        {% endfor %}
     </div>
 </section>
 {% endblock %}

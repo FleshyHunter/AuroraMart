@@ -18,10 +18,94 @@
                         <a class="btn btn-outline-primary" href="{% url 'store:order_history' %}">
                             <i class="bi bi-box-seam me-2"></i>Order History
                         </a>
+                        <a class="btn btn-outline-secondary" href="{% url 'store:password_change' %}">
+                            <i class="bi bi-key me-2"></i>Change Password
+                        </a>
                         <button type="button" class="btn btn-outline-danger ms-auto" data-bs-toggle="modal" data-bs-target="#deactivateModal">
                             <i class="bi bi-trash3 me-2"></i>Delete Account
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Saved Addresses -->
+        <div class="col-12 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-geo-alt me-2 text-primary"></i>Saved Addresses</h5>
+                    <a href="{% url 'store:address_add' %}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Add New Address
+                    </a>
+                </div>
+                <div class="card-body p-4">
+                    {% if saved_addresses %}
+                        <div class="row g-3">
+                            {% for address in saved_addresses %}
+                            <div class="col-12 col-md-6">
+                                <div class="card border {% if address.is_default %}border-primary{% endif %} h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="mb-0">
+                                                {% if address.label %}
+                                                    <i class="bi bi-tag-fill me-1"></i>{{ address.label }}
+                                                {% else %}
+                                                    <i class="bi bi-house-fill me-1"></i>Address
+                                                {% endif %}
+                                            </h6>
+                                            {% if address.is_default %}
+                                                <span class="badge bg-primary">Default</span>
+                                            {% endif %}
+                                        </div>
+                                        <hr class="my-2">
+                                        <p class="mb-1 small"><strong>{{ address.recipient_name }}</strong></p>
+                                        <p class="mb-1 small text-muted">{{ address.mobile_number }}</p>
+                                        {% if address.email %}
+                                            <p class="mb-1 small text-muted">{{ address.email }}</p>
+                                        {% endif %}
+                                        <p class="mb-1 small text-muted">{{ address.address_line1 }}</p>
+                                        {% if address.address_line2 %}
+                                            <p class="mb-1 small text-muted">{{ address.address_line2 }}</p>
+                                        {% endif %}
+                                        <p class="mb-2 small text-muted">Singapore {{ address.postal_code }}</p>
+                                        {% if address.delivery_notes %}
+                                            <p class="mb-2 small fst-italic text-muted">
+                                                <i class="bi bi-info-circle me-1"></i>{{ address.delivery_notes }}
+                                            </p>
+                                        {% endif %}
+                                        <div class="d-flex gap-2 mt-3">
+                                            <a href="{% url 'store:address_edit' address.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-pencil me-1"></i>Edit
+                                            </a>
+                                            {% if not address.is_default %}
+                                                <form method="post" action="{% url 'store:address_set_default' address.id %}" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                                        <i class="bi bi-star me-1"></i>Set Default
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                            <form method="post" action="{% url 'store:address_delete' address.id %}" class="d-inline ms-auto" onsubmit="return confirm('Delete this address?')">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-geo-alt text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2 mb-3">No saved addresses yet</p>
+                            <a href="{% url 'store:address_add' %}" class="btn btn-primary">
+                                <i class="bi bi-plus-circle me-2"></i>Add Your First Address
+                            </a>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

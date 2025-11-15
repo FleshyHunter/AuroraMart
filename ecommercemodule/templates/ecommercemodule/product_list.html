@@ -113,17 +113,17 @@
             {% endif %}
             
             {# Tasteful exploration recommendations at bottom of page #}
-            {% if exploration_recommendations %}
             <div class="mt-5">
                 <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
                     <div class="card-body py-4">
                         <div class="d-flex align-items-center mb-4">
                             <i class="bi bi-compass text-primary me-2" style="font-size: 1.5rem;"></i>
                             <div>
-                                <h5 class="mb-0">Other {{ category.name }} buyers also explored…</h5>
+                                <h5 class="mb-0">Other buyers also explored…</h5>
                                 <p class="text-muted small mb-0">Discover more great finds</p>
                             </div>
                         </div>
+                        {% if exploration_recommendations %}
                         <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4">
                             {% for rec_product in exploration_recommendations %}
                             <div class="col">
@@ -152,10 +152,12 @@
                             </div>
                             {% endfor %}
                         </div>
+                        {% else %}
+                        <p class="text-muted mb-0">No suggestions available.</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </section>

@@ -7,7 +7,7 @@ from django.contrib.auth.forms import (
 )
 
 from auroramart.models import Customer
-from .models import Review
+from .models import Review, CustomerAddress
 
 User = get_user_model()
 
@@ -388,7 +388,7 @@ class CheckoutForm(forms.Form):
         return postal_code
     
     def clean_mobile_number(self):
-        """Validate mobile number (at least 8 digits, allow +65 prefix)."""
+        """Validate mobile number (must start with 8 or 9 and have 8 digits)."""
         mobile = self.cleaned_data.get("mobile_number", "").strip()
         
         # Remove common formatting characters
@@ -400,11 +400,11 @@ class CheckoutForm(forms.Form):
         elif cleaned.startswith("65") and len(cleaned) > 8:
             cleaned = cleaned[2:]
         
-        # Check if at least 8 digits remain
+        # Check if starts with 8 or 9 and has exactly 8 digits
         import re
-        if not re.match(r'^\d{8,}$', cleaned):
+        if not re.match(r'^[89]\d{7}$', cleaned):
             raise forms.ValidationError(
-                "Please enter a valid mobile number (at least 8 digits)."
+                "Please enter a valid Singapore mobile number (must start with 8 or 9 and have 8 digits)."
             )
         
         # Return formatted version with +65 prefix
@@ -565,3 +565,134 @@ class ReviewForm(forms.ModelForm):
         if len(body) < 10:
             raise forms.ValidationError('Review must be at least 10 characters long.')
         return body
+
+
+class CustomerAddressForm(forms.ModelForm):
+    """Form for managing customer saved addresses"""
+    
+    label = forms.CharField(
+        max_length=50,
+        required=False,
+        label="Address Label",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g., Home, Work, Office"
+        }),
+        help_text="Give this address a memorable name"
+    )
+    
+    recipient_name = forms.CharField(
+        max_length=255,
+        required=True,
+        label="Recipient Name",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Full name"
+        })
+    )
+    
+    mobile_number = forms.CharField(
+        max_length=20,
+        required=True,
+        label="Mobile Number",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "+65 9123 4567"
+        })
+    )
+    
+    email = forms.EmailField(
+        required=False,
+        label="Email (Optional)",
+        widget=forms.EmailInput(attrs={
+            "class": "form-control",
+            "placeholder": "email@example.com"
+        })
+    )
+    
+    postal_code = forms.CharField(
+        max_length=6,
+        required=True,
+        label="Postal Code",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "123456"
+        })
+    )
+    
+    address_line1 = forms.CharField(
+        max_length=255,
+        required=True,
+        label="Address Line 1",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Street name and number"
+        })
+    )
+    
+    address_line2 = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Address Line 2 (Optional)",
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Unit number, floor, etc."
+        })
+    )
+    
+    delivery_notes = forms.CharField(
+        required=False,
+        label="Delivery Notes (Optional)",
+        widget=forms.Textarea(attrs={
+            "class": "form-control",
+            "placeholder": "Any special delivery instructions...",
+            "rows": 2
+        })
+    )
+    
+    is_default = forms.BooleanField(
+        required=False,
+        label="Set as default address",
+        widget=forms.CheckboxInput(attrs={
+            "class": "form-check-input"
+        })
+    )
+    
+    class Meta:
+        model = CustomerAddress
+        fields = [
+            'label',
+            'recipient_name',
+            'mobile_number',
+            'email',
+            'postal_code',
+            'address_line1',
+            'address_line2',
+            'delivery_notes',
+            'is_default'
+        ]
+    
+    def clean_postal_code(self):
+        postal_code = self.cleaned_data.get('postal_code', '').strip()
+        postal_code = postal_code.replace(' ', '').replace('-', '')
+        
+        import re
+        if not re.match(r'^\d{6}$', postal_code):
+            raise forms.ValidationError('Please enter a valid 6-digit Singapore postal code.')
+        
+        return postal_code
+    
+    def clean_mobile_number(self):
+        mobile = self.cleaned_data.get('mobile_number', '').strip()
+        cleaned = mobile.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+        
+        if cleaned.startswith('+65'):
+            cleaned = cleaned[3:]
+        elif cleaned.startswith('65') and len(cleaned) > 8:
+            cleaned = cleaned[2:]
+        
+        import re
+        if not re.match(r'^[89]\d{7}$', cleaned):
+            raise forms.ValidationError('Please enter a valid Singapore mobile number (must start with 8 or 9 and have 8 digits).')
+        
+        return f'+65{cleaned}'

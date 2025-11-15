@@ -1,0 +1,135 @@
+{% extends "ecommercemodule/base.html" %}
+{% load widget_tweaks %}
+{% block title %}{{ title }} | AuroraMart{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h4 class="mb-0"><i class="bi bi-geo-alt me-2 text-primary"></i>{{ title }}</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Address Label -->
+                        <div class="mb-3">
+                            <label for="{{ form.label.id_for_label }}" class="form-label">
+                                {{ form.label.label }}
+                            </label>
+                            {% render_field form.label class="form-control" %}
+                            {% if form.label.help_text %}
+                                <div class="form-text">{{ form.label.help_text }}</div>
+                            {% endif %}
+                            {% if form.label.errors %}
+                                <div class="invalid-feedback d-block">{{ form.label.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Recipient Name -->
+                        <div class="mb-3">
+                            <label for="{{ form.recipient_name.id_for_label }}" class="form-label">
+                                {{ form.recipient_name.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.recipient_name class="form-control" %}
+                            {% if form.recipient_name.errors %}
+                                <div class="invalid-feedback d-block">{{ form.recipient_name.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Mobile Number -->
+                        <div class="mb-3">
+                            <label for="{{ form.mobile_number.id_for_label }}" class="form-label">
+                                {{ form.mobile_number.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.mobile_number class="form-control" %}
+                            {% if form.mobile_number.errors %}
+                                <div class="invalid-feedback d-block">{{ form.mobile_number.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-3">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">
+                                {{ form.email.label }}
+                            </label>
+                            {% render_field form.email class="form-control" %}
+                            {% if form.email.errors %}
+                                <div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Postal Code -->
+                        <div class="mb-3">
+                            <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                                {{ form.postal_code.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.postal_code class="form-control" %}
+                            {% if form.postal_code.errors %}
+                                <div class="invalid-feedback d-block">{{ form.postal_code.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Address Line 1 -->
+                        <div class="mb-3">
+                            <label for="{{ form.address_line1.id_for_label }}" class="form-label">
+                                {{ form.address_line1.label }} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.address_line1 class="form-control" %}
+                            {% if form.address_line1.errors %}
+                                <div class="invalid-feedback d-block">{{ form.address_line1.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Address Line 2 -->
+                        <div class="mb-3">
+                            <label for="{{ form.address_line2.id_for_label }}" class="form-label">
+                                {{ form.address_line2.label }}
+                            </label>
+                            {% render_field form.address_line2 class="form-control" %}
+                            {% if form.address_line2.errors %}
+                                <div class="invalid-feedback d-block">{{ form.address_line2.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Delivery Notes -->
+                        <div class="mb-3">
+                            <label for="{{ form.delivery_notes.id_for_label }}" class="form-label">
+                                {{ form.delivery_notes.label }}
+                            </label>
+                            {% render_field form.delivery_notes class="form-control" %}
+                            {% if form.delivery_notes.errors %}
+                                <div class="invalid-feedback d-block">{{ form.delivery_notes.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Set as Default -->
+                        <div class="mb-4">
+                            <div class="form-check">
+                                {% render_field form.is_default class="form-check-input" %}
+                                <label class="form-check-label" for="{{ form.is_default.id_for_label }}">
+                                    {{ form.is_default.label }}
+                                </label>
+                            </div>
+                            {% if form.is_default.errors %}
+                                <div class="invalid-feedback d-block">{{ form.is_default.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle me-2"></i>Save Address
+                            </button>
+                            <a href="{% url 'store:profile' %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
