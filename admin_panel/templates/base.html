@@ -235,6 +235,11 @@
                href="{% url 'admin_panel:inventory_history' %}">
                 <i class="bi bi-clock-history"></i>Inventory History
             </a>
+
+            <a class="nav-link {% if 'history' in request.resolver_match.url_name %}active{% endif %} " 
+               href="{% url 'admin_panel:voucher_list' %}">
+                <i class="bi bi-ticket-perforated"></i>Vouchers
+            </a>
         </div>
     </nav>
 

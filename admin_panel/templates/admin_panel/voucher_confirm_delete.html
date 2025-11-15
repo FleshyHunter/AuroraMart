@@ -1,0 +1,24 @@
+{% extends "base_form.html" %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; margin-top:40px;">
+    <div style="width:80%; background-color:#f9f9f9; padding:30px 40px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+
+        <h2 style="text-align:center; margin-bottom:30px;">Delete Voucher</h2>
+
+        <form method="post">
+            {% csrf_token %}
+            <p>Are you sure you want to delete voucher "<strong>{{ voucher.name }}</strong>" (code: <code>{{ voucher.code }}</code>)?</p>
+
+            <div style="margin-top:30px; text-align:center; display:flex; gap:10px; justify-content:center;">
+                <button type="submit" style="padding:10px 25px; background-color:#dc3545; color:white; border:none; border-radius:5px; font-size:1em; cursor:pointer;">
+                    Delete
+                </button>
+                <a href="{% url 'admin_panel:voucher_list' %}" style="padding:10px 25px; background-color:#6c757d; color:white; text-decoration:none; border-radius:5px; font-size:1em; display:inline-block;">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -34,6 +34,11 @@ urlpatterns = [
     path("checkout/", views.checkout_form, name="checkout_form"),
     path("incoming-stock/", views.incoming_stock, name="incoming_stock"),
     path("inventory-history/", views.inventory_history, name="inventory_history"),
+    # Vouchers
+    path("vouchers/", views.voucher_list, name="voucher_list"),
+    path("vouchers/add/", views.voucher_add, name="voucher_add"),
+    path("vouchers/<int:pk>/edit/", views.voucher_edit, name="voucher_edit"),
+    path("vouchers/<int:pk>/delete/", views.voucher_delete, name="voucher_delete"),
     # API endpoint to fetch top products for a timeframe (AJAX)
     path("api/top-products/", views.top_products_api, name="top_products_api"),
     

@@ -1,6 +1,27 @@
 from django import forms
 from auroramart.models import Product, Customer, SubCategory
 from django.core.validators import MinValueValidator, FileExtensionValidator
+from .models import Voucher
+
+
+class VoucherForm(forms.ModelForm):
+    class Meta:
+        model = Voucher
+        fields = ['name', 'days_valid', 'percent_off', 'cap_amount']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Voucher name'}),
+            'days_valid': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'percent_off': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'cap_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+        }
+
+    def clean_percent_off(self):
+        val = self.cleaned_data.get('percent_off')
+        if val is None:
+            return val
+        if val < 0 or val > 100:
+            raise forms.ValidationError('Percent off must be between 0 and 100')
+        return val
 
 class ProductForm(forms.ModelForm):
     # Override quantity fields to ensure non-negative

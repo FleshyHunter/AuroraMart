@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from auroramart.models import Product, Customer, Category, SubCategory
-from .models import Transaction, TransactionItem, Inventory, InventoryItem, IncomingStock, InventoryHistory
+from .models import Transaction, TransactionItem, Inventory, InventoryItem, IncomingStock, InventoryHistory, Voucher
 from ecommercemodule.models import Order, OrderItem
 from .forms import ProductForm, CustomerForm
+from .forms import ProductForm, CustomerForm, VoucherForm
 from django.core.paginator import Paginator
 from django.db.models import Case, When, Value, IntegerField, Q, Sum, Count, F
 from django.urls import reverse
@@ -504,6 +505,80 @@ def product_list(request):
     }
     return render(request, 'admin_panel/product_list.html', context)
 
+
+def voucher_list(request):
+    """List vouchers in a table similar to product_list for quick UI preview."""
+    from urllib.parse import urlencode
+
+    vouchers = Voucher.objects.all()
+
+    # --- Filters ---
+    search_query = request.GET.get('q', '').strip()
+    timeframe = request.GET.get('timeframe', '')  # expected values like '1','2','3','5','7','14','30','365'
+
+    if search_query:
+        vouchers = vouchers.filter(Q(name__icontains=search_query) | Q(code__icontains=search_query))
+
+    if timeframe:
+        # timeframe is treated as "up to X days" (inclusive). Special value 'gt30' means > 30 days.
+        if timeframe == 'gt30':
+            vouchers = vouchers.filter(days_valid__gt=30)
+        else:
+            try:
+                days = int(timeframe)
+                vouchers = vouchers.filter(days_valid__lte=days)
+            except (ValueError, TypeError):
+                pass
+
+    # --- Ordering ---
+    # allow simple ordering by name, days_valid, percent_off, cap_amount, created_at
+    order = request.GET.get('order', '')
+    if order == 'name_asc':
+        vouchers = vouchers.order_by('name')
+    elif order == 'name_desc':
+        vouchers = vouchers.order_by('-name')
+    elif order == 'days_asc':
+        vouchers = vouchers.order_by('days_valid')
+    elif order == 'days_desc':
+        vouchers = vouchers.order_by('-days_valid')
+    elif order == 'percent_asc':
+        vouchers = vouchers.order_by('percent_off')
+    elif order == 'percent_desc':
+        vouchers = vouchers.order_by('-percent_off')
+    elif order == 'cap_asc':
+        vouchers = vouchers.order_by('cap_amount')
+    elif order == 'cap_desc':
+        vouchers = vouchers.order_by('-cap_amount')
+    else:
+        # Default natural ordering: ascending cap_amount (lowest max discount first), then ascending percent_off
+        vouchers = vouchers.order_by('cap_amount', 'percent_off')
+
+    # Pagination
+    paginator = Paginator(vouchers, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Query params for links
+    query_params_dict = {}
+    if search_query:
+        query_params_dict['q'] = search_query
+    if timeframe:
+        query_params_dict['timeframe'] = timeframe
+    if order:
+        query_params_dict['order'] = order
+
+    query_params = urlencode(query_params_dict)
+    full_query_params = query_params
+
+    context = {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'query_params': query_params,
+        'full_query_params': full_query_params,
+    }
+
+    return render(request, 'admin_panel/voucher_list.html', context)
+
 def product_add(request):
     # Capture the return URL from the referrer or default to product list
     return_url = request.GET.get('return_url', reverse('admin_panel:product_list'))
@@ -524,6 +599,60 @@ def product_add(request):
         "form": form,
         "return_url": return_url,
     })
+
+
+def voucher_add(request):
+    """Create a new voucher (simple form for name, days_valid, percent_off, cap_amount)."""
+    return_url = request.GET.get('return_url', reverse('admin_panel:voucher_list'))
+
+    if request.method == 'POST':
+        form = VoucherForm(request.POST)
+        if form.is_valid():
+            voucher = form.save()
+            messages.success(request, f'Voucher "{voucher.name}" created successfully!')
+            return redirect(return_url)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = VoucherForm()
+
+    return render(request, 'admin_panel/voucher_form.html', {
+        'form': form,
+        'return_url': return_url,
+        'title': 'Add Voucher'
+    })
+
+
+def voucher_edit(request, pk):
+    voucher = get_object_or_404(Voucher, pk=pk)
+    return_url = request.GET.get('return_url', reverse('admin_panel:voucher_list'))
+
+    if request.method == 'POST':
+        form = VoucherForm(request.POST, instance=voucher)
+        if form.is_valid():
+            voucher = form.save()
+            messages.success(request, f'Voucher "{voucher.name}" updated successfully!')
+            return redirect(return_url)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = VoucherForm(instance=voucher)
+
+    return render(request, 'admin_panel/voucher_form.html', {
+        'form': form,
+        'return_url': return_url,
+        'title': 'Edit Voucher'
+    })
+
+
+def voucher_delete(request, pk):
+    voucher = get_object_or_404(Voucher, pk=pk)
+    if request.method == 'POST':
+        name = voucher.name
+        voucher.delete()
+        messages.success(request, f'Voucher "{name}" deleted successfully!')
+        return redirect('admin_panel:voucher_list')
+    return render(request, 'admin_panel/voucher_confirm_delete.html', {'voucher': voucher})
 
 def product_edit(request, pk):
     product = get_object_or_404(Product, pk=pk)
