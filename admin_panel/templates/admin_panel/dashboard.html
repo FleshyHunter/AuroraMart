@@ -63,15 +63,39 @@
 
 {% block content %}
 <!-- Sales Overview Header -->
-<div class="sales-overview-section">
+    <div class="sales-overview-section">
     <div class="d-flex justify-content-between align-items-center">
         <div>
             <h2><i class="bi bi-graph-up-arrow me-2"></i>Sales and Transaction Overview</h2>
-            <span class="date-range-badge">
-                <i class="bi bi-calendar-range me-1"></i>{{ start_date }} to {{ end_date }}
-            </span>
+        </div>
+        <div>
+            <form method="get" class="date-range-badge d-flex align-items-center gap-2">
+                <i class="bi bi-calendar-range me-1"></i>
+                <input type="date" name="start_date" class="form-control form-control-sm" style="max-width:140px; background: rgba(255,255,255,0.9);" value="{{ start_date }}">
+                <span class="text-white small">to</span>
+                <input type="date" name="end_date" class="form-control form-control-sm" style="max-width:140px; background: rgba(255,255,255,0.9);" value="{{ end_date }}">
+
+                <select name="granularity" class="form-select form-select-sm" style="max-width:130px; background: rgba(255,255,255,0.9);">
+                    <option value="daily" {% if request.GET.granularity == 'daily' or not request.GET.granularity %}selected{% endif %}>Daily</option>
+                    <option value="monthly" {% if request.GET.granularity == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="yearly" {% if request.GET.granularity == 'yearly' %}selected{% endif %}>Yearly</option>
+                </select>
+
+                <button class="btn btn-sm btn-light text-dark" type="submit">Apply</button>
+            </form>
         </div>
     </div>
+</div>
+<!-- KPI Cards Row -->
+ 
+<!-- Date range display (restored) -->
+<div class="mb-3">
+    <span id="dashboard-date-badge" class="badge bg-white text-dark rounded-pill d-inline-flex align-items-center px-3 py-2 shadow-sm">
+        <i class="bi bi-calendar-range me-2"></i>
+        <strong id="badge-start" class="me-1">{{ start_date }}</strong>
+        <span class="text-muted me-1">to</span>
+        <strong id="badge-end">{{ end_date }}</strong>
+    </span>
 </div>
 
 <!-- KPI Cards Row -->
@@ -119,77 +143,35 @@
             <h5 class="chart-title"><i class="bi bi-graph-up me-2"></i>Daily Sales & Order Trends</h5>
             <canvas id="dailySalesChart" height="80"></canvas>
         </div>
+
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="chart-title mb-0"><i class="bi bi-trophy me-2"></i>Top 5 Best Selling Products</h5>
+                <div class="d-flex align-items-center">
+                    <select id="topTimeframeSelect" class="form-select form-select-sm" style="max-width:160px;">
+                        <option value="all_time" {% if top_timeframe == 'all_time' %}selected{% endif %}>All time</option>
+                        <option value="last_year" {% if top_timeframe == 'last_year' %}selected{% endif %}>Last year</option>
+                        <option value="last_month" {% if top_timeframe == 'last_month' %}selected{% endif %}>Last month</option>
+                        <option value="last_week" {% if top_timeframe == 'last_week' %}selected{% endif %}>Last week</option>
+                        <option value="today" {% if top_timeframe == 'today' %}selected{% endif %}>Today</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="topProductsChart" height="150"></canvas>
+        </div>
+
     </div>
     
     <!-- Category Distribution -->
     <div class="col-lg-4">
-        <div class="chart-container">
-            <h5 class="chart-title"><i class="bi bi-pie-chart me-2"></i>Category Sales</h5>
-            <canvas id="categoryChart" height="200"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- Top Products and Daily Stats -->
-<div class="row g-4 mb-4">
-    <!-- Top Selling Products -->
-    <div class="col-lg-6">
-        <div class="chart-container">
-            <h5 class="chart-title"><i class="bi bi-trophy me-2"></i>Top 5 Best Selling Products</h5>
-            <canvas id="topProductsChart" height="150"></canvas>
-        </div>
-    </div>
-    
-    <!-- Daily Statistics Summary -->
-    <div class="col-lg-6">
-        <div class="chart-container">
-            <h5 class="chart-title"><i class="bi bi-bar-chart me-2"></i>Recent Daily Performance</h5>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th class="text-end">Revenue</th>
-                            <th class="text-center">Orders</th>
-                            <th class="text-center">Items</th>
-                            <th class="text-center">Units</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stat in daily_stats|slice:"-7:" reversed %}
-                        <tr>
-                            <td><small>{{ stat.date|date:"M d, Y" }}</small></td>
-                            <td class="text-end"><strong>${{ stat.amount|floatformat:2 }}</strong></td>
-                            <td class="text-center">{{ stat.orders }}</td>
-                            <td class="text-center">{{ stat.items }}</td>
-                            <td class="text-center">{{ stat.units }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center text-muted">No data available</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot class="table-light">
-                        <tr>
-                            <th>Total (Last 7 Days)</th>
-                            <th class="text-end">
-                                ${% widthratio daily_stats|slice:"-7:"|length 1 1 as days_count %}
-                                {% for stat in daily_stats|slice:"-7:" %}
-                                    {% if forloop.first %}{{ stat.amount|floatformat:2 }}{% else %}{{ stat.amount|add:0|floatformat:2 }}{% endif %}
-                                {% endfor %}
-                            </th>
-                            <th class="text-center">
-                                {% with daily_stats|slice:"-7:" as recent_stats %}
-                                    {{ recent_stats|length }}
-                                {% endwith %}
-                            </th>
-                            <th class="text-center">-</th>
-                            <th class="text-center">-</th>
-                        </tr>
-                    </tfoot>
-                </table>
+        <div class="chart-container d-flex flex-column align-items-center">
+            <h5 class="chart-title text-center"><i class="bi bi-pie-chart me-2"></i>Category Sales</h5>
+            <div class="d-flex justify-content-center w-100 my-2">
+                <canvas id="categoryChart" height="200" style="max-width:260px;"></canvas>
             </div>
+            <!-- Custom legend and summary below the chart -->
+            <div id="category-legend" class="w-100 mt-3 d-flex flex-column align-items-start"></div>
+            <div id="category-summary" class="w-100 mt-2 text-muted small"></div>
         </div>
     </div>
 </div>
@@ -500,54 +482,66 @@ new Chart(dailySalesCtx, {
     }
 });
 
-// Category Chart Data
-const categoryData = JSON.parse('{{ category_chart_json|escapejs }}');
-const categoryLabels = categoryData.map(c => c.name);
-const categoryRevenue = categoryData.map(c => c.revenue);
+// Category Chart Data — compute top categories and an 'Others' bucket when needed
+const rawCategoryData = JSON.parse('{{ category_chart_json|escapejs }}') || [];
+const totalCategories = rawCategoryData.length;
+const sortedAll = rawCategoryData.slice().sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
 
-// Category Sales Chart (Doughnut)
+let displayData = [];
+if (totalCategories > 10) {
+    // show top 9, then an 'Others' slice with the rest combined
+    const topNine = sortedAll.slice(0, 9);
+    const others = sortedAll.slice(9);
+    const othersSum = others.reduce((s, it) => s + (Number(it.revenue) || 0), 0);
+    displayData = topNine.map(it => ({ name: it.name, revenue: Number(it.revenue) || 0 }));
+    displayData.push({ name: 'Others', revenue: othersSum });
+} else {
+    // show all categories (up to 10)
+    displayData = sortedAll.slice(0, 10).map(it => ({ name: it.name, revenue: Number(it.revenue) || 0 }));
+}
+
+const categoryLabels = displayData.map(d => d.name);
+const categoryRevenue = displayData.map(d => d.revenue);
+
+// Extended palette for up to 10 items
+const categoryPalette = [
+    colors.primary,
+    colors.success,
+    colors.warning,
+    colors.danger,
+    colors.info,
+    colors.purple,
+    colors.orange,
+    colors.secondary,
+    'rgba(100,149,237,0.8)',
+    'rgba(255,99,132,0.8)'
+];
+
+// Create doughnut chart centered in container and render a custom legend below
 const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-new Chart(categoryCtx, {
+const categoryChart = new Chart(categoryCtx, {
     type: 'doughnut',
     data: {
         labels: categoryLabels,
         datasets: [{
             data: categoryRevenue,
-            backgroundColor: [
-                colors.primary,
-                colors.success,
-                colors.warning,
-                colors.danger,
-                colors.info,
-                colors.purple,
-                colors.orange,
-                colors.secondary
-            ],
+            backgroundColor: categoryPalette.slice(0, categoryLabels.length),
             borderWidth: 2,
             borderColor: '#fff'
         }]
     },
     options: {
         responsive: true,
-        maintainAspectRatio: true,
+        maintainAspectRatio: false,
         plugins: {
-            legend: {
-                display: true,
-                position: 'right',
-                labels: {
-                    padding: 10,
-                    font: {
-                        size: 11
-                    }
-                }
-            },
+            legend: { display: false }, // we'll render our own legend below
             tooltip: {
                 callbacks: {
                     label: function(context) {
                         const label = context.label || '';
                         const value = context.parsed || 0;
                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
+                        const percentage = total ? ((value / total) * 100).toFixed(1) : '0.0';
                         return label + ': $' + value.toFixed(2) + ' (' + percentage + '%)';
                     }
                 }
@@ -556,14 +550,63 @@ new Chart(categoryCtx, {
     }
 });
 
-// Top Products Chart Data
-const topProductsData = JSON.parse('{{ top_products_json|escapejs }}');
-const productLabels = topProductsData.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name);
-const productQty = topProductsData.map(p => p.qty);
+// Build custom legend below the chart
+(function renderCategoryLegend() {
+    const legendEl = document.getElementById('category-legend');
+    const summaryEl = document.getElementById('category-summary');
+    if (!legendEl) return;
+
+    // Clear
+    legendEl.innerHTML = '';
+
+    const total = categoryRevenue.reduce((s, v) => s + (Number(v) || 0), 0) || 0;
+
+    categoryLabels.forEach((label, i) => {
+        const color = categoryPalette[i % categoryPalette.length];
+        const value = Number(categoryRevenue[i]) || 0;
+        const pct = total ? (value / total * 100) : 0;
+
+        const row = document.createElement('div');
+        row.className = 'd-flex align-items-center mb-1 w-100';
+
+        const swatch = document.createElement('span');
+        swatch.style.width = '12px';
+        swatch.style.height = '12px';
+        swatch.style.background = color;
+        swatch.className = 'me-2 rounded';
+
+        const text = document.createElement('div');
+        text.className = 'flex-grow-1 text-truncate';
+        text.style.maxWidth = '180px';
+        text.textContent = label;
+
+        const meta = document.createElement('div');
+        meta.className = 'text-end text-muted small ms-2';
+        meta.style.minWidth = '90px';
+        meta.textContent = `$${value.toFixed(2)} (${pct.toFixed(1)}%)`;
+
+        row.appendChild(swatch);
+        row.appendChild(text);
+        row.appendChild(meta);
+        legendEl.appendChild(row);
+    });
+
+    // Summary line: if <=10 show the number of categories, otherwise show Top9 + Others note
+    if (totalCategories <= 10) {
+        summaryEl.textContent = `Showing ${totalCategories} categories`;
+    } else {
+        summaryEl.textContent = `Showing top 9 categories + Others (total categories: ${totalCategories})`;
+    }
+})();
+
+// Top Products Chart Data (initial)
+let topProductsData = JSON.parse('{{ top_products_json|escapejs }}');
+let productLabels = topProductsData.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name);
+let productQty = topProductsData.map(p => p.qty);
 
 // Top Products Chart (Horizontal Bar)
 const topProductsCtx = document.getElementById('topProductsChart').getContext('2d');
-new Chart(topProductsCtx, {
+const topProductsChart = new Chart(topProductsCtx, {
     type: 'bar',
     data: {
         labels: productLabels,
@@ -618,6 +661,33 @@ new Chart(topProductsCtx, {
     }
 });
 
+// Fetch new top products without reloading the page and update the chart
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('topTimeframeSelect');
+    if (!select) return;
+
+    select.addEventListener('change', async function() {
+        const timeframe = this.value;
+        const url = '{% url "admin_panel:top_products_api" %}?timeframe=' + encodeURIComponent(timeframe);
+        try {
+            const resp = await fetch(url, { credentials: 'same-origin' });
+            if (!resp.ok) throw new Error('Network response was not ok');
+            const payload = await resp.json();
+            const items = payload.top_products || [];
+
+            // Update chart data
+            const labels = items.map(p => p.name.length > 20 ? p.name.substring(0,20) + '...' : p.name);
+            const data = items.map(p => p.qty || 0);
+
+            topProductsChart.data.labels = labels;
+            topProductsChart.data.datasets[0].data = data;
+            topProductsChart.update();
+        } catch (err) {
+            console && console.error && console.error('Failed to load top products:', err);
+        }
+    });
+});
+
 // Animate revenue number
 const revenueElement = document.getElementById('totalRevenue');
 const targetRevenue = parseFloat('{{ total_order_amount|floatformat:2|escapejs }}');
@@ -635,5 +705,90 @@ const timer = setInterval(() => {
         revenueElement.textContent = currentRevenue.toFixed(0);
     }
 }, 20);
+</script>
+<script>
+// Persist dashboard date range (start_date, end_date, granularity) in localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        const startInput = document.querySelector('input[name="start_date"]');
+        const endInput = document.querySelector('input[name="end_date"]');
+        const granInput = document.querySelector('select[name="granularity"]');
+        const form = startInput ? startInput.closest('form') : null;
+
+        const badgeStart = document.getElementById('badge-start');
+        const badgeEnd = document.getElementById('badge-end');
+
+        const savedStart = localStorage.getItem('dashboard_start_date');
+        const savedEnd = localStorage.getItem('dashboard_end_date');
+        const savedGran = localStorage.getItem('dashboard_granularity');
+
+        // If saved values exist, pre-fill the controls so the user's choice persists
+        if (savedStart && startInput) startInput.value = savedStart;
+        if (savedEnd && endInput) endInput.value = savedEnd;
+        if (savedGran && granInput) granInput.value = savedGran;
+
+    // Update badge from inputs or saved values (prefer input values)
+    const displayStart = (startInput && startInput.value) || savedStart || (badgeStart && badgeStart.textContent) || '';
+    const displayEnd = (endInput && endInput.value) || savedEnd || (badgeEnd && badgeEnd.textContent) || '';
+        if (badgeStart && displayStart) badgeStart.textContent = displayStart;
+        if (badgeEnd && displayEnd) badgeEnd.textContent = displayEnd;
+
+        let submitTimer = null;
+        function saveAndUpdateBadge() {
+            if (startInput && startInput.value) {
+                localStorage.setItem('dashboard_start_date', startInput.value);
+                if (badgeStart) badgeStart.textContent = startInput.value;
+            }
+            if (endInput && endInput.value) {
+                localStorage.setItem('dashboard_end_date', endInput.value);
+                if (badgeEnd) badgeEnd.textContent = endInput.value;
+            }
+            if (granInput && granInput.value) localStorage.setItem('dashboard_granularity', granInput.value);
+
+            // Auto-submit with debounce when both dates are present so charts refresh
+            if (form && startInput && endInput && startInput.value && endInput.value) {
+                if (submitTimer) clearTimeout(submitTimer);
+                submitTimer = setTimeout(function() {
+                    try { form.submit(); } catch (e) { /* ignore */ }
+                }, 700);
+            }
+        }
+
+        // On input change, immediately update badge, persist selection, and trigger auto-submit
+        if (startInput) startInput.addEventListener('change', saveAndUpdateBadge);
+        if (endInput) endInput.addEventListener('change', saveAndUpdateBadge);
+        if (granInput) granInput.addEventListener('change', function() {
+            localStorage.setItem('dashboard_granularity', granInput.value);
+            // trigger submit too when granularity changes
+            if (form) {
+                if (submitTimer) clearTimeout(submitTimer);
+                submitTimer = setTimeout(function() { try { form.submit(); } catch (e) {} }, 500);
+            }
+        });
+
+        // If the URL has no date params but we have saved values, auto-submit once so server renders charts with saved range
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasStartParam = urlParams.has('start_date');
+        const hasEndParam = urlParams.has('end_date');
+        if (form && !hasStartParam && !hasEndParam && savedStart && savedEnd) {
+            // Give the browser a moment to finish loading before submitting
+            setTimeout(function() {
+                try {
+                    form.submit();
+                } catch (e) {}
+            }, 300);
+        }
+
+        // On submit, also save values (keeps previous behavior)
+        if (form) {
+            form.addEventListener('submit', function() {
+                saveAndUpdateBadge();
+            });
+        }
+    } catch (e) {
+        // noop
+        console && console.warn && console.warn('Dashboard date persistence error', e);
+    }
+});
 </script>
 {% endblock %}

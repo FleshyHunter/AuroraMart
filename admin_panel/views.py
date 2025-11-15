@@ -10,91 +10,194 @@ from django.contrib import messages
 from django.utils import timezone
 from datetime import datetime, timedelta
 from django.http import JsonResponse
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.admin.views.decorators import staff_member_required
 from collections import defaultdict
 from decimal import Decimal
 import json
 
+@staff_member_required(login_url='/admin_panel/login/')
 def dashboard(request):
-    # Get date range from query params (default to last 30 days)
-    end_date = timezone.now()
-    start_date = end_date - timedelta(days=30)
-    
-    # === SALES ANALYTICS ===
-    # Combine Orders (ecommerce) and Transactions (admin panel)
-    orders = Order.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
-    transactions = Transaction.objects.filter(transaction_date__gte=start_date, transaction_date__lte=end_date)
-    
-    # Calculate KPIs
+    # Get date range and granularity from query params (defaults: last 30 days, daily)
+    from datetime import date as _date
+
+    granularity = request.GET.get('granularity', 'daily')  # daily | monthly | yearly
+    start_str = request.GET.get('start_date', '')
+    end_str = request.GET.get('end_date', '')
+
+    if start_str:
+        try:
+            start_date = datetime.strptime(start_str, '%Y-%m-%d')
+        except Exception:
+            start_date = timezone.now() - timedelta(days=30)
+    else:
+        start_date = timezone.now() - timedelta(days=30)
+
+    if end_str:
+        try:
+            end_date = datetime.strptime(end_str, '%Y-%m-%d')
+        except Exception:
+            end_date = timezone.now()
+    else:
+        end_date = timezone.now()
+
+    # Normalize to date objects for period iteration
+    start_dt = start_date.date() if hasattr(start_date, 'date') else start_date
+    end_dt = end_date.date() if hasattr(end_date, 'date') else end_date
+
+    # Fetch orders/transactions within the inclusive range
+    orders = Order.objects.filter(created_at__date__gte=start_dt, created_at__date__lte=end_dt)
+    transactions = Transaction.objects.filter(transaction_date__date__gte=start_dt, transaction_date__date__lte=end_dt)
+
+    # Calculate KPIs (total amounts and counts across the selected range)
     order_total_amount = orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
     transaction_total_amount = transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
     total_order_amount = order_total_amount + transaction_total_amount
-    
-    # Total order items (count of line items)
+
     order_items_count = OrderItem.objects.filter(order__in=orders).count()
     transaction_items_count = TransactionItem.objects.filter(transaction__in=transactions).count()
     total_order_items = order_items_count + transaction_items_count
-    
-    # Total order units (sum of quantities)
+
     order_units = OrderItem.objects.filter(order__in=orders).aggregate(total=Sum('quantity'))['total'] or 0
     transaction_units = TransactionItem.objects.filter(transaction__in=transactions).aggregate(total=Sum('quantity'))['total'] or 0
     total_order_units = order_units + transaction_units
-    
-    # Total unique orders/transactions
+
     total_orders_count = orders.count() + transactions.count()
-    
-    # === DAILY STATISTICS ===
+
+    # Build aggregated stats according to granularity
     daily_stats = []
-    current_date = start_date.date()
-    while current_date <= end_date.date():
-        next_date = current_date + timedelta(days=1)
-        
-        day_orders = orders.filter(created_at__date=current_date)
-        day_transactions = transactions.filter(transaction_date__date=current_date)
-        
-        day_amount = (day_orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')) + \
-                     (day_transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
-        
-        day_items = OrderItem.objects.filter(order__in=day_orders).count() + \
-                    TransactionItem.objects.filter(transaction__in=day_transactions).count()
-        
-        day_units = (OrderItem.objects.filter(order__in=day_orders).aggregate(total=Sum('quantity'))['total'] or 0) + \
-                    (TransactionItem.objects.filter(transaction__in=day_transactions).aggregate(total=Sum('quantity'))['total'] or 0)
-        
-        day_orders_count = day_orders.count() + day_transactions.count()
-        
-        daily_stats.append({
-            'date': current_date.strftime('%Y-%m-%d'),  # Convert date to string for JSON serialization
-            'amount': float(day_amount),
-            'items': day_items,
-            'units': day_units,
-            'orders': day_orders_count,
-        })
-        
-        current_date = next_date
+
+    def month_iter(start_d, end_d):
+        y, m = start_d.year, start_d.month
+        while True:
+            yield _date(y, m, 1)
+            if y == end_d.year and m == end_d.month:
+                break
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
+
+    if granularity == 'monthly':
+        for period_start in month_iter(start_dt, end_dt):
+            y, m = period_start.year, period_start.month
+            period_orders = orders.filter(created_at__year=y, created_at__month=m)
+            period_transactions = transactions.filter(transaction_date__year=y, transaction_date__month=m)
+
+            period_amount = (period_orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')) + \
+                            (period_transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
+            period_items = OrderItem.objects.filter(order__in=period_orders).count() + TransactionItem.objects.filter(transaction__in=period_transactions).count()
+            period_units = (OrderItem.objects.filter(order__in=period_orders).aggregate(total=Sum('quantity'))['total'] or 0) + \
+                           (TransactionItem.objects.filter(transaction__in=period_transactions).aggregate(total=Sum('quantity'))['total'] or 0)
+            period_orders_count = period_orders.count() + period_transactions.count()
+
+            daily_stats.append({
+                'date': period_start.strftime('%Y-%m-%d'),
+                'amount': float(period_amount),
+                'items': period_items,
+                'units': period_units,
+                'orders': period_orders_count,
+            })
+
+    elif granularity == 'yearly':
+        for yr in range(start_dt.year, end_dt.year + 1):
+            period_orders = orders.filter(created_at__year=yr)
+            period_transactions = transactions.filter(transaction_date__year=yr)
+
+            period_amount = (period_orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')) + \
+                            (period_transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
+            period_items = OrderItem.objects.filter(order__in=period_orders).count() + TransactionItem.objects.filter(transaction__in=period_transactions).count()
+            period_units = (OrderItem.objects.filter(order__in=period_orders).aggregate(total=Sum('quantity'))['total'] or 0) + \
+                           (TransactionItem.objects.filter(transaction__in=period_transactions).aggregate(total=Sum('quantity'))['total'] or 0)
+            period_orders_count = period_orders.count() + period_transactions.count()
+
+            daily_stats.append({
+                'date': _date(yr, 1, 1).strftime('%Y-%m-%d'),
+                'amount': float(period_amount),
+                'items': period_items,
+                'units': period_units,
+                'orders': period_orders_count,
+            })
+
+    else:
+        # daily (default)
+        current_date = start_dt
+        while current_date <= end_dt:
+            day_orders = orders.filter(created_at__date=current_date)
+            day_transactions = transactions.filter(transaction_date__date=current_date)
+
+            day_amount = (day_orders.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')) + \
+                         (day_transactions.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'))
+
+            day_items = OrderItem.objects.filter(order__in=day_orders).count() + \
+                        TransactionItem.objects.filter(transaction__in=day_transactions).count()
+
+            day_units = (OrderItem.objects.filter(order__in=day_orders).aggregate(total=Sum('quantity'))['total'] or 0) + \
+                        (TransactionItem.objects.filter(transaction__in=day_transactions).aggregate(total=Sum('quantity'))['total'] or 0)
+
+            day_orders_count = day_orders.count() + day_transactions.count()
+
+            daily_stats.append({
+                'date': current_date.strftime('%Y-%m-%d'),  # Convert date to string for JSON serialization
+                'amount': float(day_amount),
+                'items': day_items,
+                'units': day_units,
+                'orders': day_orders_count,
+            })
+
+            current_date = current_date + timedelta(days=1)
     
     # === TOP SELLING PRODUCTS ===
-    # Aggregate from both OrderItem and TransactionItem
-    order_product_sales = OrderItem.objects.filter(order__in=orders).values('product').annotate(
+    # Timeframe filter for the top products widget (all_time, last_year, last_month, last_week, today)
+    top_timeframe = request.GET.get('top_timeframe', 'all_time')
+    now = timezone.now()
+
+    if top_timeframe == 'all_time':
+        top_orders_qs = Order.objects.all()
+        top_transactions_qs = Transaction.objects.all()
+    elif top_timeframe == 'last_year':
+        start_tf = now - timedelta(days=365)
+        top_orders_qs = Order.objects.filter(created_at__gte=start_tf)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__gte=start_tf)
+    elif top_timeframe == 'last_month':
+        start_tf = now - timedelta(days=30)
+        top_orders_qs = Order.objects.filter(created_at__gte=start_tf)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__gte=start_tf)
+    elif top_timeframe == 'last_week':
+        start_tf = now - timedelta(days=7)
+        top_orders_qs = Order.objects.filter(created_at__gte=start_tf)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__gte=start_tf)
+    elif top_timeframe == 'today':
+        today_date = now.date()
+        top_orders_qs = Order.objects.filter(created_at__date=today_date)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__date=today_date)
+    else:
+        # fallback to all time
+        top_orders_qs = Order.objects.all()
+        top_transactions_qs = Transaction.objects.all()
+
+    # Aggregate from both OrderItem and TransactionItem for the selected timeframe
+    order_product_sales = OrderItem.objects.filter(order__in=top_orders_qs).values('product').annotate(
         total_qty=Sum('quantity'),
         total_revenue=Sum(F('quantity') * F('unit_price'))
     )
-    transaction_product_sales = TransactionItem.objects.filter(transaction__in=transactions).values('product').annotate(
+    transaction_product_sales = TransactionItem.objects.filter(transaction__in=top_transactions_qs).values('product').annotate(
         total_qty=Sum('quantity'),
         total_revenue=Sum(F('quantity') * F('price'))
     )
-    
+
     # Combine product sales
     product_sales_dict = defaultdict(lambda: {'qty': 0, 'revenue': Decimal('0')})
     for item in order_product_sales:
         product_id = item['product']
-        product_sales_dict[product_id]['qty'] += item['total_qty']
-        product_sales_dict[product_id]['revenue'] += item['total_revenue']
-    
+        product_sales_dict[product_id]['qty'] += item['total_qty'] or 0
+        product_sales_dict[product_id]['revenue'] += item['total_revenue'] or Decimal('0')
+
     for item in transaction_product_sales:
         product_id = item['product']
-        product_sales_dict[product_id]['qty'] += item['total_qty']
-        product_sales_dict[product_id]['revenue'] += item['total_revenue']
-    
+        product_sales_dict[product_id]['qty'] += item['total_qty'] or 0
+        product_sales_dict[product_id]['revenue'] += item['total_revenue'] or Decimal('0')
+
     # Get top 5 products by quantity
     top_products_data = sorted(product_sales_dict.items(), key=lambda x: x[1]['qty'], reverse=True)[:5]
     top_products = []
@@ -145,6 +248,7 @@ def dashboard(request):
         'daily_stats_json': json.dumps(daily_stats),
         'top_products': top_products,
         'top_products_json': json.dumps(top_products),
+    'top_timeframe': top_timeframe,
         'category_chart_data': category_chart_data,
         'category_chart_json': json.dumps(category_chart_data),
         'start_date': start_date.strftime('%Y-%m-%d'),
@@ -160,6 +264,94 @@ def dashboard(request):
         'top_rated': top_rated,
     }
     return render(request, 'admin_panel/dashboard.html', context)
+
+
+def top_products_api(request):
+    """Return top 5 products for a given timeframe as JSON.
+
+    GET params:
+      - timeframe: one of all_time, last_year, last_month, last_week, today
+    """
+    timeframe = request.GET.get('timeframe', 'all_time')
+    now = timezone.now()
+
+    if timeframe == 'all_time':
+        top_orders_qs = Order.objects.all()
+        top_transactions_qs = Transaction.objects.all()
+    elif timeframe == 'last_year':
+        start_tf = now - timedelta(days=365)
+        top_orders_qs = Order.objects.filter(created_at__gte=start_tf)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__gte=start_tf)
+    elif timeframe == 'last_month':
+        start_tf = now - timedelta(days=30)
+        top_orders_qs = Order.objects.filter(created_at__gte=start_tf)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__gte=start_tf)
+    elif timeframe == 'last_week':
+        start_tf = now - timedelta(days=7)
+        top_orders_qs = Order.objects.filter(created_at__gte=start_tf)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__gte=start_tf)
+    elif timeframe == 'today':
+        today_date = now.date()
+        top_orders_qs = Order.objects.filter(created_at__date=today_date)
+        top_transactions_qs = Transaction.objects.filter(transaction_date__date=today_date)
+    else:
+        top_orders_qs = Order.objects.all()
+        top_transactions_qs = Transaction.objects.all()
+
+    order_product_sales = OrderItem.objects.filter(order__in=top_orders_qs).values('product').annotate(
+        total_qty=Sum('quantity'),
+        total_revenue=Sum(F('quantity') * F('unit_price'))
+    )
+    transaction_product_sales = TransactionItem.objects.filter(transaction__in=top_transactions_qs).values('product').annotate(
+        total_qty=Sum('quantity'),
+        total_revenue=Sum(F('quantity') * F('price'))
+    )
+
+    product_sales_dict = defaultdict(lambda: {'qty': 0, 'revenue': Decimal('0')})
+    for item in order_product_sales:
+        pid = item['product']
+        product_sales_dict[pid]['qty'] += item['total_qty'] or 0
+        product_sales_dict[pid]['revenue'] += item['total_revenue'] or Decimal('0')
+
+    for item in transaction_product_sales:
+        pid = item['product']
+        product_sales_dict[pid]['qty'] += item['total_qty'] or 0
+        product_sales_dict[pid]['revenue'] += item['total_revenue'] or Decimal('0')
+
+    top_products_data = sorted(product_sales_dict.items(), key=lambda x: x[1]['qty'], reverse=True)[:5]
+    top_products = []
+    for pid, data in top_products_data:
+        try:
+            prod = Product.objects.get(pk=pid)
+            top_products.append({'name': prod.name, 'qty': data['qty'], 'revenue': float(data['revenue'])})
+        except Product.DoesNotExist:
+            continue
+
+    return JsonResponse({'top_products': top_products})
+
+
+def admin_login(request):
+    """Simple admin login view restricted to staff users."""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None and user.is_active and user.is_staff:
+            auth_login(request, user)
+            # honor "next" param if provided
+            next_url = request.POST.get('next') or request.GET.get('next') or reverse('admin_panel:dashboard')
+            return redirect(next_url)
+        else:
+            messages.error(request, 'Invalid credentials or you are not authorized to access the admin panel.')
+
+    # Render the login form (standalone full-page template)
+    return render(request, 'admin_panel/admin_login_full.html', {})
+
+
+def admin_logout(request):
+    """Log out the current admin user and redirect to the admin login page."""
+    auth_logout(request)
+    return redirect('admin_panel:admin_login')
 
 # Product
 def product_list(request):
@@ -201,6 +393,7 @@ def product_list(request):
         else:
             # If no exact match, show partial matches
             products = products.filter(sku__icontains=sku_query)
+
     
     # --- Sorting ---
     # Priority: name > price > category > subcategory > stock > rating > status > default
@@ -305,7 +498,7 @@ def product_list(request):
         'name_order': name_order,
         'category_order': category_order,
         'subcategory_order': subcategory_order,
-        'status_order': status_order,
+    'status_order': status_order,
         'query_params': query_params,  # Filter params only (for header sort links)
         'full_query_params': full_query_params,  # All params including sort (for edit/delete return URLs)
     }
@@ -634,6 +827,7 @@ def inventory_list(request):
     # --- Search / Filters ---
     search_query = request.GET.get('q', '')
     sku_query = request.GET.get('sku', '')
+    below_reorder = request.GET.get('below_reorder', '')
 
     if search_query:
         products = products.filter(name__icontains=search_query)
@@ -643,6 +837,34 @@ def inventory_list(request):
             products = exact_match
         else:
             products = products.filter(sku__icontains=sku_query)
+
+    # --- Low stock filter: products at or below their reorder quantity ---
+    if below_reorder:
+        products = products.filter(quantity_on_hand__lte=F('reorder_quantity'))
+
+    # --- Auto-place orders for low stock items: set order_cart to reorder_quantity when filter active ---
+    # This runs on GET (not POST) so it won't interfere with manual cart updates submitted via the form.
+    if below_reorder and request.method != 'POST':
+        try:
+            order_cart = request.session.get('order_cart', {})
+        except Exception:
+            order_cart = {}
+
+        # Set the order quantity for each product in the filtered queryset to its reorder_quantity
+        # but only if the product is not already present in the session cart. This prevents
+        # overwriting manual edits or button clicks which update the session on POST.
+        for p in products:
+            pid = str(p.id)
+            if pid in order_cart:
+                # preserve any existing user-set quantity
+                continue
+            try:
+                order_cart[pid] = int(p.reorder_quantity or 0)
+            except Exception:
+                # If reorder_quantity isn't an int or missing, skip
+                continue
+
+        request.session['order_cart'] = order_cart
 
     # --- Handle POST: update order quantity ---
     if request.method == 'POST':
@@ -710,6 +932,7 @@ def inventory_list(request):
         'page_obj': page_obj,
         'search_query': search_query,
         'sku_query': sku_query,
+        'below_reorder': below_reorder,
     }
     return render(request, 'admin_panel/inventory_list.html', context)
 

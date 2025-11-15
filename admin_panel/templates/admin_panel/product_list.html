@@ -207,7 +207,8 @@
                     <td>{{ p.category.name|default:"-" }}</td>
                     <td>{{ p.subcategory.name|default:"-" }}</td>
                     <td class="text-center">
-                        <span class="badge {% if p.quantity_on_hand < 10 %}bg-danger{% elif p.quantity_on_hand < 50 %}bg-warning{% else %}bg-success{% endif %}">
+                        {# If quantity is below the product's reorder_quantity, show red; otherwise keep existing thresholds #}
+                        <span class="badge {% if p.quantity_on_hand < p.reorder_quantity %}bg-danger{% elif p.quantity_on_hand < 50 %}bg-warning{% else %}bg-success{% endif %}">
                             {{ p.quantity_on_hand }}
                         </span>
                     </td>
