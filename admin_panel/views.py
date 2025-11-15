@@ -10,10 +10,13 @@ from django.contrib import messages
 from django.utils import timezone
 from datetime import datetime, timedelta
 from django.http import JsonResponse
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.admin.views.decorators import staff_member_required
 from collections import defaultdict
 from decimal import Decimal
 import json
 
+@staff_member_required(login_url='/admin_panel/login/')
 def dashboard(request):
     # Get date range and granularity from query params (defaults: last 30 days, daily)
     from datetime import date as _date
@@ -325,6 +328,30 @@ def top_products_api(request):
             continue
 
     return JsonResponse({'top_products': top_products})
+
+
+def admin_login(request):
+    """Simple admin login view restricted to staff users."""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None and user.is_active and user.is_staff:
+            auth_login(request, user)
+            # honor "next" param if provided
+            next_url = request.POST.get('next') or request.GET.get('next') or reverse('admin_panel:dashboard')
+            return redirect(next_url)
+        else:
+            messages.error(request, 'Invalid credentials or you are not authorized to access the admin panel.')
+
+    # Render the login form (standalone full-page template)
+    return render(request, 'admin_panel/admin_login_full.html', {})
+
+
+def admin_logout(request):
+    """Log out the current admin user and redirect to the admin login page."""
+    auth_logout(request)
+    return redirect('admin_panel:admin_login')
 
 # Product
 def product_list(request):

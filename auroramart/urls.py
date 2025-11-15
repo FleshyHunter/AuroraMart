@@ -21,7 +21,9 @@ from django.urls import include, path
 from django.shortcuts import redirect
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Built-in Django admin removed for this deployment - access disabled.
+    # If you later need to enable it, uncomment the next line.
+    # path("admin/", admin.site.urls),
     path("", lambda request: redirect('ecommercemodule:home'), name="home"),  # Root redirects to ecommerce home
     path("store/", include("ecommercemodule.urls", "store")),  # Customer-facing store
     path("admin_panel/", include("admin_panel.urls")),  # Admin panel for inventory/management

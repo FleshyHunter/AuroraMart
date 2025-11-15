@@ -143,26 +143,7 @@
             <h5 class="chart-title"><i class="bi bi-graph-up me-2"></i>Daily Sales & Order Trends</h5>
             <canvas id="dailySalesChart" height="80"></canvas>
         </div>
-    </div>
-    
-    <!-- Category Distribution -->
-    <div class="col-lg-4">
-        <div class="chart-container d-flex flex-column align-items-center">
-            <h5 class="chart-title text-center"><i class="bi bi-pie-chart me-2"></i>Category Sales</h5>
-            <div class="d-flex justify-content-center w-100 my-2">
-                <canvas id="categoryChart" height="200" style="max-width:260px;"></canvas>
-            </div>
-            <!-- Custom legend and summary below the chart -->
-            <div id="category-legend" class="w-100 mt-3 d-flex flex-column align-items-start"></div>
-            <div id="category-summary" class="w-100 mt-2 text-muted small"></div>
-        </div>
-    </div>
-</div>
 
-<!-- Top Products and Daily Stats -->
-<div class="row g-4 mb-4">
-    <!-- Top Selling Products -->
-    <div class="col-lg-6">
         <div class="chart-container">
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="chart-title mb-0"><i class="bi bi-trophy me-2"></i>Top 5 Best Selling Products</h5>
@@ -178,58 +159,19 @@
             </div>
             <canvas id="topProductsChart" height="150"></canvas>
         </div>
+
     </div>
     
-    <!-- Daily Statistics Summary -->
-    <div class="col-lg-6">
-        <div class="chart-container">
-            <h5 class="chart-title"><i class="bi bi-bar-chart me-2"></i>Recent Daily Performance</h5>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th class="text-end">Revenue</th>
-                            <th class="text-center">Orders</th>
-                            <th class="text-center">Items</th>
-                            <th class="text-center">Units</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stat in daily_stats|slice:"-7:" reversed %}
-                        <tr>
-                            <td><small>{{ stat.date|date:"M d, Y" }}</small></td>
-                            <td class="text-end"><strong>${{ stat.amount|floatformat:2 }}</strong></td>
-                            <td class="text-center">{{ stat.orders }}</td>
-                            <td class="text-center">{{ stat.items }}</td>
-                            <td class="text-center">{{ stat.units }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center text-muted">No data available</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot class="table-light">
-                        <tr>
-                            <th>Total (Last 7 Days)</th>
-                            <th class="text-end">
-                                ${% widthratio daily_stats|slice:"-7:"|length 1 1 as days_count %}
-                                {% for stat in daily_stats|slice:"-7:" %}
-                                    {% if forloop.first %}{{ stat.amount|floatformat:2 }}{% else %}{{ stat.amount|add:0|floatformat:2 }}{% endif %}
-                                {% endfor %}
-                            </th>
-                            <th class="text-center">
-                                {% with daily_stats|slice:"-7:" as recent_stats %}
-                                    {{ recent_stats|length }}
-                                {% endwith %}
-                            </th>
-                            <th class="text-center">-</th>
-                            <th class="text-center">-</th>
-                        </tr>
-                    </tfoot>
-                </table>
+    <!-- Category Distribution -->
+    <div class="col-lg-4">
+        <div class="chart-container d-flex flex-column align-items-center">
+            <h5 class="chart-title text-center"><i class="bi bi-pie-chart me-2"></i>Category Sales</h5>
+            <div class="d-flex justify-content-center w-100 my-2">
+                <canvas id="categoryChart" height="200" style="max-width:260px;"></canvas>
             </div>
+            <!-- Custom legend and summary below the chart -->
+            <div id="category-legend" class="w-100 mt-3 d-flex flex-column align-items-start"></div>
+            <div id="category-summary" class="w-100 mt-2 text-muted small"></div>
         </div>
     </div>
 </div>
