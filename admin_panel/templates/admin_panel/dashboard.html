@@ -270,7 +270,7 @@
                     </tbody>
                 </table>
             </div>
-            <a href="{% url 'admin_panel:product_list' %}" class="btn btn-sm btn-outline-primary mt-2">
+            <a href="{% url 'admin_panel:inventory_list' %}?below_reorder=1" class="btn btn-sm btn-outline-primary mt-2">
                 View all low stock items <i class="bi bi-arrow-right"></i>
             </a>
             {% else %}

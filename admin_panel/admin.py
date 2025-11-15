@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import Transaction, TransactionItem, IncomingStock, InventoryHistory
+from .models import Voucher, VoucherAssignment
 
 # Note: Product and Customer are registered in auroramart/admin.py (shared models)
 
@@ -17,6 +18,31 @@ class TransactionAdmin(admin.ModelAdmin):
 
 # Register Transaction with its admin
 admin.site.register(Transaction, TransactionAdmin)
+
+
+@admin.register(Voucher)
+class VoucherAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'percent_off', 'cap_amount', 'created_at')
+    search_fields = ('name', 'code')
+    readonly_fields = ('created_at',)
+    ordering = ('-created_at',)
+    list_filter = ('created_at',)
+    filter_horizontal = ()
+
+
+class VoucherAssignmentInline(admin.TabularInline):
+    model = VoucherAssignment
+    extra = 0
+    readonly_fields = ('customer', 'assigned_at', 'expires_at', 'used')
+    can_delete = False
+
+
+@admin.register(VoucherAssignment)
+class VoucherAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('voucher', 'customer', 'assigned_at', 'expires_at', 'used')
+    list_filter = ('used',)
+    search_fields = ('voucher__name', 'voucher__code', 'customer__user__username')
+    readonly_fields = ('assigned_at',)
 
 @admin.register(IncomingStock)
 class IncomingStockAdmin(admin.ModelAdmin):

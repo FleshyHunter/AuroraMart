@@ -1,8 +1,14 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+from datetime import timedelta
+import uuid
 
 from auroramart.models import Product, Customer
 
+def generate_voucher_code():
+    """Generate a random 8-character voucher code."""
+    return uuid.uuid4().hex[:8].upper()
 
 class Transaction(models.Model):
     transaction_id = models.AutoField(primary_key=True)
@@ -70,4 +76,75 @@ class InventoryHistory(models.Model):
  
     def __str__(self):
         return f"History {self.history_id} - {self.product.name} ({self.movement_type}) - {self.quantity}"
+
+
+class Voucher(models.Model):
+    """A voucher that can be distributed to customers.
+
+    - name: human-friendly name (e.g., "Spring Sale 20%")
+    - code: short unique code admins can share
+    - days_valid: number of days the voucher is valid from assignment
+    - percent_off: percentage discount (0-100)
+    - cap_amount: maximum discount amount in currency
+    """
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=32, unique=True, default=generate_voucher_code)
+    days_valid = models.PositiveIntegerField(default=30, help_text="How many days the voucher is valid from assignment")
+    percent_off = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    cap_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    def assign_to_customer(self, customer, assigned_at=None):
+        """Create a VoucherAssignment for a single customer (idempotent)."""
+        if assigned_at is None:
+            assigned_at = timezone.now()
+
+        # avoid duplicates for same voucher/customer
+        existing = VoucherAssignment.objects.filter(voucher=self, customer=customer).first()
+        if existing:
+            return existing
+
+        expires_at = assigned_at + timedelta(days=self.days_valid)
+        va = VoucherAssignment.objects.create(voucher=self, customer=customer, assigned_at=assigned_at, expires_at=expires_at)
+        return va
+
+    def assign_to_customers(self, customers_queryset):
+        """Bulk assign to a queryset or iterable of Customer instances. Returns number created."""
+        created = 0
+        now = timezone.now()
+        for c in customers_queryset:
+            if not VoucherAssignment.objects.filter(voucher=self, customer=c).exists():
+                expires_at = now + timedelta(days=self.days_valid)
+                VoucherAssignment.objects.create(voucher=self, customer=c, assigned_at=now, expires_at=expires_at)
+                created += 1
+        return created
+
+
+class VoucherAssignment(models.Model):
+    """Represents a voucher assigned to a specific customer."""
+    voucher = models.ForeignKey(Voucher, on_delete=models.CASCADE, related_name='assignments')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='voucher_assignments')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = (('voucher', 'customer'),)
+        ordering = ("-assigned_at",)
+
+    def __str__(self):
+        return f"{self.voucher.code} -> Customer #{self.customer.pk}"
+
+    def save(self, *args, **kwargs):
+        # ensure expires_at is set relative to assigned_at if missing
+        if not self.expires_at:
+            base = self.assigned_at or timezone.now()
+            self.expires_at = base + timedelta(days=self.voucher.days_valid)
+        super().save(*args, **kwargs)
 

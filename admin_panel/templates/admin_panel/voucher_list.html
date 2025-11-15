@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Vouchers - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1><i class="bi bi-ticket-perforated me-2"></i>Vouchers</h1>
+    <a href="{% url 'admin_panel:voucher_add' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle me-1"></i>Add Voucher
+    </a>
+</div>
+
+<!-- Filters and Search Card -->
+<div class="content-card filter-section">
+    <form method="get" id="filterForm">
+        <div class="row g-3">
+            <div class="col-md-6 col-lg-3">
+                <label for="searchVoucher" class="form-label small text-muted">Search Voucher</label>
+                <input type="text" class="form-control" id="searchVoucher" name="q" 
+                       placeholder="Voucher name or code..." value="{{ search_query }}">
+            </div>
+
+            <div class="col-md-6 col-lg-3">
+                <label for="timeframeFilter" class="form-label small text-muted">Timeframe (Days)</label>
+                <select class="form-select" id="timeframeFilter" name="timeframe">
+                    <option value="">All</option>
+                    <option value="1" {% if request.GET.timeframe == '1' %}selected{% endif %}>1 day</option>
+                    <option value="2" {% if request.GET.timeframe == '2' %}selected{% endif %}>2 days</option>
+                    <option value="3" {% if request.GET.timeframe == '3' %}selected{% endif %}>3 days</option>
+                    <option value="5" {% if request.GET.timeframe == '5' %}selected{% endif %}>5 days</option>
+                    <option value="7" {% if request.GET.timeframe == '7' %}selected{% endif %}>7 days</option>
+                    <option value="14" {% if request.GET.timeframe == '14' %}selected{% endif %}>14 days</option>
+                    <option value="30" {% if request.GET.timeframe == '30' %}selected{% endif %}>1 month</option>
+                    <option value="gt30" {% if request.GET.timeframe == 'gt30' %}selected{% endif %}>> 30 days</option>
+                </select>
+            </div>
+
+            <!-- Filter Buttons -->
+            <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-funnel me-1"></i>Apply Filters
+                </button>
+                <a href="{% url 'admin_panel:voucher_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-1"></i>Clear Filters
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Results Info -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="text-muted">
+        Showing {% if page_obj %}{{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }}{% else %}0{% endif %} vouchers
+    </div>
+</div>
+
+<!-- Voucher Table -->
+<div class="content-card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th class="align-middle">
+                        Name
+                        <a href="?order={% if request.GET.order == 'name_asc' %}name_desc{% else %}name_asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            <i class="bi bi-arrow-down-up"></i>
+                        </a>
+                    </th>
+                    <th class="align-middle">
+                        Timeframe
+                        <a href="?order={% if request.GET.order == 'days_asc' %}days_desc{% else %}days_asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            <i class="bi bi-sort-numeric-down"></i>
+                        </a>
+                    </th>
+                    <th class="align-middle">
+                        % Off
+                        <a href="?order={% if request.GET.order == 'percent_asc' %}percent_desc{% else %}percent_asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            <i class="bi bi-sort-numeric-down"></i>
+                        </a>
+                    </th>
+                    <th class="align-middle">
+                        Cap Amount
+                        <a href="?order={% if request.GET.order == 'cap_asc' %}cap_desc{% else %}cap_asc{% endif %}{% if query_params %}&{{ query_params }}{% endif %}" class="btn btn-sm btn-outline-light ms-1 py-0 px-1" style="font-size:0.7rem;">
+                            <i class="bi bi-sort-numeric-down"></i>
+                        </a>
+                    </th>
+                    <th class="align-middle">Code</th>
+                    <th class="align-middle">Created</th>
+                    <th class="text-center align-middle">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in page_obj %}
+                <tr>
+                    <td><strong>{{ v.name }}</strong></td>
+                    <td>{{ v.days_valid }} Days</td>
+                    <td>{{ v.percent_off }}%</td>
+                    <td>${{ v.cap_amount }}</td>
+                    <td><code>{{ v.code }}</code></td>
+                    <td>{{ v.created_at|date:"Y-m-d" }}</td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'admin_panel:voucher_edit' v.pk %}?{{ full_query_params }}" class="btn btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <form method="post" action="{% url 'admin_panel:voucher_delete' v.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger" title="Delete" onclick="return confirm('Are you sure you want to delete {{ v.name }}?');">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                        No vouchers found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.paginator.num_pages > 1 %}
+<nav aria-label="Voucher pagination" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    <i class="bi bi-chevron-double-left"></i> First
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    <i class="bi bi-chevron-left"></i> Previous
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-double-left"></i> First</span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link"><i class="bi bi-chevron-left"></i> Previous</span>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    Next <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if full_query_params %}&{{ full_query_params }}{% endif %}">
+                    Last <i class="bi bi-chevron-double-right"></i>
+                </a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Next <i class="bi bi-chevron-right"></i></span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Last <i class="bi bi-chevron-double-right"></i></span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% endblock %}
