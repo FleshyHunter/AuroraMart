@@ -1,0 +1,285 @@
+{% extends "ecommercemodule/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - AuroraMart{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-{% if address %}pencil-square{% else %}plus-circle{% endif %} me-2"></i>
+                        {{ title }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row g-3">
+                            <!-- Address Label -->
+                            <div class="col-12">
+                                <label for="{{ form.label.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.label.label }}
+                                </label>
+                                <input type="text" 
+                                       name="{{ form.label.name }}" 
+                                       id="{{ form.label.id_for_label }}"
+                                       value="{{ form.label.value|default:'' }}"
+                                       class="form-control {% if form.label.errors %}is-invalid{% endif %}"
+                                       placeholder="e.g., Home, Work, Parents' House">
+                                {% if form.label.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.label.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                <small class="text-muted">Give this address a memorable name</small>
+                            </div>
+                            
+                            <!-- Recipient Name -->
+                            <div class="col-md-6">
+                                <label for="{{ form.recipient_name.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.recipient_name.label }}<span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       name="{{ form.recipient_name.name }}" 
+                                       id="{{ form.recipient_name.id_for_label }}"
+                                       value="{{ form.recipient_name.value|default:'' }}"
+                                       class="form-control {% if form.recipient_name.errors %}is-invalid{% endif %}"
+                                       placeholder="Full name of recipient"
+                                       required>
+                                {% if form.recipient_name.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.recipient_name.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Mobile Number -->
+                            <div class="col-md-6">
+                                <label for="{{ form.mobile_number.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.mobile_number.label }}<span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group {% if form.mobile_number.errors %}has-validation{% endif %}">
+                                    <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                                    <input type="text" 
+                                           name="{{ form.mobile_number.name }}" 
+                                           id="{{ form.mobile_number.id_for_label }}"
+                                           value="{{ form.mobile_number.value|default:'' }}"
+                                           class="form-control {% if form.mobile_number.errors %}is-invalid{% endif %}"
+                                           placeholder="e.g., +65 9123 4567"
+                                           required>
+                                    {% if form.mobile_number.errors %}
+                                        <div class="invalid-feedback">
+                                            {{ form.mobile_number.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- Email -->
+                            <div class="col-12">
+                                <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.email.label }}
+                                </label>
+                                <div class="input-group {% if form.email.errors %}has-validation{% endif %}">
+                                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                    <input type="email" 
+                                           name="{{ form.email.name }}" 
+                                           id="{{ form.email.id_for_label }}"
+                                           value="{{ form.email.value|default:'' }}"
+                                           class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+                                           placeholder="your.email@example.com">
+                                    {% if form.email.errors %}
+                                        <div class="invalid-feedback">
+                                            {{ form.email.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- Postal Code with Lookup -->
+                            <div class="col-md-4">
+                                <label for="{{ form.postal_code.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.postal_code.label }}<span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group {% if form.postal_code.errors %}has-validation{% endif %}">
+                                    <input type="text" 
+                                           name="{{ form.postal_code.name }}" 
+                                           id="{{ form.postal_code.id_for_label }}"
+                                           value="{{ form.postal_code.value|default:'' }}"
+                                           class="form-control {% if form.postal_code.errors %}is-invalid{% endif %}"
+                                           placeholder="6-digit code"
+                                           maxlength="6"
+                                           required>
+                                    <button class="btn btn-outline-secondary" type="button" id="lookupPostalCode">
+                                        <i class="bi bi-search"></i> Lookup
+                                    </button>
+                                    {% if form.postal_code.errors %}
+                                        <div class="invalid-feedback">
+                                            {{ form.postal_code.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">Singapore postal code</small>
+                            </div>
+                            
+                            <!-- Address Line 1 -->
+                            <div class="col-md-8">
+                                <label for="{{ form.address_line1.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.address_line1.label }}<span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       name="{{ form.address_line1.name }}" 
+                                       id="{{ form.address_line1.id_for_label }}"
+                                       value="{{ form.address_line1.value|default:'' }}"
+                                       class="form-control {% if form.address_line1.errors %}is-invalid{% endif %}"
+                                       placeholder="Street address, building name"
+                                       required>
+                                {% if form.address_line1.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.address_line1.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Address Line 2 -->
+                            <div class="col-12">
+                                <label for="{{ form.address_line2.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.address_line2.label }}
+                                </label>
+                                <input type="text" 
+                                       name="{{ form.address_line2.name }}" 
+                                       id="{{ form.address_line2.id_for_label }}"
+                                       value="{{ form.address_line2.value|default:'' }}"
+                                       class="form-control {% if form.address_line2.errors %}is-invalid{% endif %}"
+                                       placeholder="Unit number, floor, etc.">
+                                {% if form.address_line2.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.address_line2.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Delivery Notes -->
+                            <div class="col-12">
+                                <label for="{{ form.delivery_notes.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.delivery_notes.label }}
+                                </label>
+                                <textarea name="{{ form.delivery_notes.name }}" 
+                                          id="{{ form.delivery_notes.id_for_label }}"
+                                          class="form-control {% if form.delivery_notes.errors %}is-invalid{% endif %}"
+                                          placeholder="Any special instructions for delivery..."
+                                          rows="3">{{ form.delivery_notes.value|default:'' }}</textarea>
+                                {% if form.delivery_notes.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.delivery_notes.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Is Default Checkbox -->
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="checkbox" 
+                                           name="{{ form.is_default.name }}" 
+                                           id="{{ form.is_default.id_for_label }}"
+                                           class="form-check-input"
+                                           {% if form.is_default.value %}checked{% endif %}>
+                                    <label class="form-check-label" for="{{ form.is_default.id_for_label }}">
+                                        {{ form.is_default.label }}
+                                    </label>
+                                </div>
+                                <small class="text-muted">This address will be pre-selected at checkout</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle me-2"></i>
+                                {% if address %}Update Address{% else %}Add Address{% endif %}
+                            </button>
+                            <a href="{% url 'ecommercemodule:profile' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ========================================
+    // Postal Code Lookup (Singapore OneMap API)
+    // ========================================
+    const postalCodeInput = document.getElementById('{{ form.postal_code.id_for_label }}');
+    const addressLine1Input = document.getElementById('{{ form.address_line1.id_for_label }}');
+    const lookupBtn = document.getElementById('lookupPostalCode');
+    
+    if (lookupBtn && postalCodeInput && addressLine1Input) {
+        lookupBtn.addEventListener('click', function() {
+            const postalCode = postalCodeInput.value.trim();
+            
+            if (!postalCode || postalCode.length !== 6) {
+                alert('Please enter a valid 6-digit postal code.');
+                return;
+            }
+            
+            // Disable button and show loading state
+            lookupBtn.disabled = true;
+            lookupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading...';
+            
+            // Call Singapore OneMap API
+            fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=N&getAddrDetails=Y`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.found > 0 && data.results.length > 0) {
+                        const result = data.results[0];
+                        // Populate address line 1 with the address
+                        addressLine1Input.value = result.ADDRESS || result.BLK_NO + ' ' + result.ROAD_NAME;
+                        addressLine1Input.focus();
+                        
+                        // Show success feedback
+                        const feedback = document.createElement('div');
+                        feedback.className = 'alert alert-success alert-dismissible fade show mt-2';
+                        feedback.innerHTML = `
+                            <i class="bi bi-check-circle me-2"></i>Address found!
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        postalCodeInput.parentElement.parentElement.appendChild(feedback);
+                        
+                        setTimeout(() => feedback.remove(), 3000);
+                    } else {
+                        alert('No address found for this postal code. Please enter the address manually.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching address:', error);
+                    alert('Unable to lookup address. Please enter manually.');
+                })
+                .finally(() => {
+                    // Reset button state
+                    lookupBtn.disabled = false;
+                    lookupBtn.innerHTML = '<i class="bi bi-search"></i> Lookup';
+                });
+        });
+        
+        // Also allow Enter key to trigger lookup
+        postalCodeInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                lookupBtn.click();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
