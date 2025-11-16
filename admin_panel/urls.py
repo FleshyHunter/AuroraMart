@@ -39,6 +39,7 @@ urlpatterns = [
     path("vouchers/add/", views.voucher_add, name="voucher_add"),
     path("vouchers/<int:pk>/edit/", views.voucher_edit, name="voucher_edit"),
     path("vouchers/<int:pk>/delete/", views.voucher_delete, name="voucher_delete"),
+    path("vouchers/<int:pk>/launch/", views.voucher_launch, name="voucher_launch"),
     # API endpoint to fetch top products for a timeframe (AJAX)
     path("api/top-products/", views.top_products_api, name="top_products_api"),
     

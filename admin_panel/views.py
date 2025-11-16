@@ -654,6 +654,35 @@ def voucher_delete(request, pk):
         return redirect('admin_panel:voucher_list')
     return render(request, 'admin_panel/voucher_confirm_delete.html', {'voucher': voucher})
 
+@staff_member_required(login_url='/admin_panel/login/')
+def voucher_launch(request, pk):
+    """Send (assign) this voucher to every customer account.
+
+    This endpoint only accepts POST. It uses Voucher.assign_to_customers to
+    perform idempotent assignment and reports counts via Django messages.
+    """
+    voucher = get_object_or_404(Voucher, pk=pk)
+
+    # Only allow POST to perform the action
+    if request.method != 'POST':
+        return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+    customers = Customer.objects.all()
+    total_customers = customers.count()
+
+    if total_customers == 0:
+        messages.warning(request, 'No customers found to assign this voucher to.')
+        return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+    # The model helper will skip existing assignments and return number created
+    created_count = voucher.assign_to_customers(customers)
+    skipped = total_customers - created_count
+
+    messages.success(request, f'Launched voucher {voucher.code}: assigned to {created_count} customers, skipped {skipped}.')
+
+    # Redirect back to referrer or voucher list, preserving any query params is handled by the referrer
+    return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
 def product_edit(request, pk):
     product = get_object_or_404(Product, pk=pk)
     

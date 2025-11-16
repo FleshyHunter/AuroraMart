@@ -55,6 +55,18 @@ class Command(BaseCommand):
             },
         ]
 
+        # Add 12 patterned vouchers: 1.1 SALE -> 12.12 SALE
+        for i in range(1, 13):
+            name = f"{i}.{i} SALE"
+            code = f"{i}.{i} SUPER"
+            vouchers_data.append({
+                'name': name,
+                'code': code,
+                'days_valid': 3,
+                'percent_off': 50,
+                'cap_amount': 20.00,
+            })
+
         # Create vouchers
         created_vouchers = []
         for voucher_data in vouchers_data:
