@@ -7,12 +7,15 @@ from .models import Voucher
 class VoucherForm(forms.ModelForm):
     class Meta:
         model = Voucher
-        fields = ['name', 'days_valid', 'percent_off', 'cap_amount']
+        fields = ['name', 'days_valid', 'percent_off', 'cap_amount', 'scheduled_auto_launch', 'scheduled_month', 'scheduled_day']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Voucher name'}),
             'days_valid': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
             'percent_off': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100'}),
             'cap_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'scheduled_auto_launch': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'scheduled_month': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '12'}),
+            'scheduled_day': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '31'}),
         }
 
     def clean_percent_off(self):
@@ -22,6 +25,22 @@ class VoucherForm(forms.ModelForm):
         if val < 0 or val > 100:
             raise forms.ValidationError('Percent off must be between 0 and 100')
         return val
+
+    def clean(self):
+        cleaned = super().clean()
+        auto = cleaned.get('scheduled_auto_launch')
+        month = cleaned.get('scheduled_month')
+        day = cleaned.get('scheduled_day')
+
+        if auto:
+            if not month or not day:
+                raise forms.ValidationError('When scheduled auto-launch is enabled you must set both month and day.')
+            if month < 1 or month > 12:
+                self.add_error('scheduled_month', 'Month must be between 1 and 12')
+            if day < 1 or day > 31:
+                self.add_error('scheduled_day', 'Day must be between 1 and 31')
+
+        return cleaned
 
 class ProductForm(forms.ModelForm):
     # Override quantity fields to ensure non-negative

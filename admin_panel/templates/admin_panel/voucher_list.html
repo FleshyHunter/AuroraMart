@@ -10,6 +10,7 @@
     </a>
 </div>
 
+
 <!-- Filters and Search Card -->
 <div class="content-card filter-section">
     <form method="get" id="filterForm">
@@ -34,6 +35,8 @@
                     <option value="gt30" {% if request.GET.timeframe == 'gt30' %}selected{% endif %}>> 30 days</option>
                 </select>
             </div>
+
+            <!-- Project Date control removed -->
 
             <!-- Filter Buttons -->
             <div class="col-12 d-flex gap-2">
@@ -101,12 +104,21 @@
                     <td><code>{{ v.code }}</code></td>
                     <td>{{ v.created_at|date:"Y-m-d" }}</td>
                     <td class="text-center">
-                        <form method="post" action="{% url 'admin_panel:voucher_launch' v.pk %}?{{ full_query_params }}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-success btn-sm" title="Launch" onclick="return confirm('Send voucher {{ v.code }} to all user accounts?');">
-                                <i class="bi bi-rocket"></i>
-                            </button>
-                        </form>
+                        <div class="d-flex justify-content-center gap-1">
+                            <form method="post" action="{% url 'admin_panel:voucher_launch' v.pk %}?{{ full_query_params }}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-success btn-sm" title="Launch" onclick="return confirm('Send voucher {{ v.code }} to all user accounts? This will create a new assignment for each customer.');">
+                                    <i class="bi bi-rocket"></i>
+                                </button>
+                            </form>
+
+                            <form method="post" action="{% url 'admin_panel:voucher_deactivate' v.pk %}?{{ full_query_params }}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Deactivate" onclick="return confirm('Retract voucher {{ v.code }} from all user accounts? This will remove all assignments of this voucher.');">
+                                    <i class="bi bi-person-x"></i>
+                                </button>
+                            </form>
+                        </div>
                     </td>
 
                     <td class="text-center">
