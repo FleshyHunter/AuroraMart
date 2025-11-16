@@ -919,7 +919,18 @@ def order_success(request, order_id):
         pk=order_id,
         customer=profile,
     )
-    return render(request, "ecommercemodule/order_success.html", {"order": order})
+    
+    # Calculate subtotal (before discount)
+    subtotal = sum(item.line_total for item in order.items.all())
+    
+    # Get discount amount from order
+    discount_amount = order.voucher_discount if order.voucher_discount else Decimal("0.00")
+    
+    return render(request, "ecommercemodule/order_success.html", {
+        "order": order,
+        "subtotal": subtotal,
+        "discount_amount": discount_amount,
+    })
 
 
 @login_required
