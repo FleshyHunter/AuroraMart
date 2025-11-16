@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from auroramart.models import Product, Customer, Category, SubCategory
-from .models import Transaction, TransactionItem, Inventory, InventoryItem, IncomingStock, InventoryHistory, Voucher
+from .models import Transaction, TransactionItem, Inventory, InventoryItem, IncomingStock, InventoryHistory, Voucher, VoucherAssignment
 from ecommercemodule.models import Order, OrderItem
 from .forms import ProductForm, CustomerForm
 from .forms import ProductForm, CustomerForm, VoucherForm
@@ -530,6 +530,8 @@ def voucher_list(request):
             except (ValueError, TypeError):
                 pass
 
+    # (no project-date override in this view)
+
     # --- Ordering ---
     # allow simple ordering by name, days_valid, percent_off, cap_amount, created_at
     order = request.GET.get('order', '')
@@ -564,6 +566,7 @@ def voucher_list(request):
         query_params_dict['q'] = search_query
     if timeframe:
         query_params_dict['timeframe'] = timeframe
+    # no as_of handling
     if order:
         query_params_dict['order'] = order
 
@@ -653,6 +656,83 @@ def voucher_delete(request, pk):
         messages.success(request, f'Voucher "{name}" deleted successfully!')
         return redirect('admin_panel:voucher_list')
     return render(request, 'admin_panel/voucher_confirm_delete.html', {'voucher': voucher})
+
+@staff_member_required(login_url='/admin_panel/login/')
+def voucher_launch(request, pk):
+    """Send (assign) this voucher to every customer account.
+
+    Behavior changed: launching should create a fresh assignment for every
+    customer each time it is pressed (duplicates allowed). To support this we
+    create new VoucherAssignment rows for every customer (no deduplication).
+    """
+    voucher = get_object_or_404(Voucher, pk=pk)
+
+    # Only allow POST to perform the action
+    if request.method != 'POST':
+        return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+    customers = Customer.objects.all()
+    total_customers = customers.count()
+
+    if total_customers == 0:
+        messages.warning(request, 'No customers found to assign this voucher to.')
+        return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+    now = timezone.now()
+
+    # Special-case: keep Welcome voucher idempotent (no duplicates). Other
+    # vouchers should create fresh assignments on each launch per your request.
+    welcome_codes = {'WELCOME10'}
+    # Also guard by name in case code differs
+    is_welcome = (voucher.code and voucher.code.upper() in welcome_codes) or (voucher.name and voucher.name.lower().startswith('welcome'))
+
+    if is_welcome:
+        # Use model helper which avoids creating duplicate assignments
+        created_count = voucher.assign_to_customers(customers)
+        skipped = total_customers - created_count
+        messages.success(request, f'Launched welcome voucher {voucher.code}: assigned to {created_count} customers (skipped {skipped} already-assigned).')
+        return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+    # Non-welcome vouchers: create fresh assignments for every customer (duplicates allowed)
+    assignments = []
+    expires_delta = timedelta(days=voucher.days_valid)
+
+    for c in customers:
+        va = VoucherAssignment(
+            voucher=voucher,
+            customer=c,
+            assigned_at=now,
+            expires_at=now + expires_delta,
+        )
+        assignments.append(va)
+
+    VoucherAssignment.objects.bulk_create(assignments)
+
+    created_count = len(assignments)
+    messages.success(request, f'Launched voucher {voucher.code}: created {created_count} new assignments for {total_customers} customers.')
+
+    return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+
+@staff_member_required(login_url='/admin_panel/login/')
+def voucher_deactivate(request, pk):
+    """Remove all assignments of this voucher from all customers.
+
+    This performs a bulk delete of VoucherAssignment rows for the voucher.
+    """
+    voucher = get_object_or_404(Voucher, pk=pk)
+
+    if request.method != 'POST':
+        return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
+
+    # Delete all assignments for this voucher and report how many were removed
+    deleted_info = VoucherAssignment.objects.filter(voucher=voucher).delete()
+    # deleted_info is a tuple (num_deleted, { 'app.Model': n, ... })
+    deleted_count = deleted_info[0] if isinstance(deleted_info, tuple) else 0
+
+    messages.success(request, f'Deactivated voucher {voucher.code}: removed {deleted_count} assignment(s).')
+
+    return redirect(request.META.get('HTTP_REFERER', reverse('admin_panel:voucher_list')))
 
 def product_edit(request, pk):
     product = get_object_or_404(Product, pk=pk)

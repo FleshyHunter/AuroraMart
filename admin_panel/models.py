@@ -93,6 +93,11 @@ class Voucher(models.Model):
     percent_off = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     cap_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, validators=[MinValueValidator(0)])
     created_at = models.DateTimeField(auto_now_add=True)
+    # Optional scheduled auto-launch: month (1-12) and day (1-31) when the voucher
+    # should be auto-launched each year if it currently has no assignments.
+    scheduled_auto_launch = models.BooleanField(default=False, help_text='If set, voucher will be auto-launched on the scheduled day/month each year when the management command runs.')
+    scheduled_month = models.PositiveSmallIntegerField(null=True, blank=True, help_text='Month for scheduled launch (1-12)')
+    scheduled_day = models.PositiveSmallIntegerField(null=True, blank=True, help_text='Day of month for scheduled launch (1-31)')
 
     class Meta:
         ordering = ("-created_at",)
@@ -135,7 +140,6 @@ class VoucherAssignment(models.Model):
     used = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = (('voucher', 'customer'),)
         ordering = ("-assigned_at",)
 
     def __str__(self):
