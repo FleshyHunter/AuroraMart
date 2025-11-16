@@ -30,6 +30,13 @@ class Order(models.Model):
     total_amount = models.DecimalField(
         max_digits=12, decimal_places=2, validators=[MinValueValidator(0)]
     )
+    voucher_code = models.CharField(
+        max_length=32, blank=True, null=True, help_text="Applied voucher code"
+    )
+    voucher_discount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00"), 
+        validators=[MinValueValidator(0)], help_text="Discount amount from voucher"
+    )
 
     class Meta:
         ordering = ["-created_at"]

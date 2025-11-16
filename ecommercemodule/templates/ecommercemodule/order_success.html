@@ -107,6 +107,22 @@
                             </tbody>
                             <tfoot class="border-top">
                                 <tr>
+                                    <td colspan="3" class="text-end text-muted">Subtotal:</td>
+                                    <td class="text-end text-muted">${{ subtotal|floatformat:2 }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="3" class="text-end text-muted">Delivery:</td>
+                                    <td class="text-end text-success">FREE</td>
+                                </tr>
+                                {% if discount_amount and discount_amount|floatformat:2 != '0.00' %}
+                                <tr>
+                                    <td colspan="3" class="text-end text-success">
+                                        <i class="bi bi-ticket-perforated me-1"></i>Voucher Discount
+                                    </td>
+                                    <td class="text-end text-success">- ${{ discount_amount|floatformat:2 }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
                                     <td colspan="3" class="text-end fw-bold">Order Total:</td>
                                     <td class="text-end">
                                         <span class="fs-5 text-success fw-bold">${{ order.total_amount|floatformat:2 }}</span>
