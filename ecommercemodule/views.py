@@ -13,6 +13,7 @@ from django.db.models import F, Q, Avg, Count
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -28,6 +29,7 @@ from .forms import (
     ReviewForm,
     StorePasswordResetForm,
 )
+from admin_panel.models import VoucherAssignment
 from auroramart.models import Category, Customer, Product, SubCategory
 from .models import Cart, CartItem, CustomerAddress, Order, OrderItem, Review
 from auroramart.ml import (
@@ -75,6 +77,214 @@ def _safe_redirect(request, fallback):
     ):
         return redirect_to
     return fallback
+
+
+def _validate_and_apply_voucher(voucher_code, profile, cart_total):
+    """
+    Validate voucher code and calculate discount.
+    
+    Returns:
+        tuple: (voucher_discount, applied_voucher, error_message)
+        - voucher_discount: Decimal amount of discount
+        - applied_voucher: VoucherAssignment object if valid, None otherwise
+        - error_message: Error message string if invalid, None otherwise
+    """
+    if not voucher_code:
+        return Decimal("0.00"), None, None
+    
+    voucher_code = voucher_code.strip().upper()
+    
+    try:
+        applied_voucher = VoucherAssignment.objects.select_related('voucher').get(
+            voucher__code=voucher_code,
+            customer=profile,
+            used=False,
+            expires_at__gt=timezone.now()
+        )
+        
+        # Calculate discount
+        percent_off = applied_voucher.voucher.percent_off
+        cap_amount = applied_voucher.voucher.cap_amount
+        voucher_discount = (cart_total * percent_off / Decimal("100.0"))
+        if cap_amount and voucher_discount > cap_amount:
+            voucher_discount = cap_amount
+        voucher_discount = voucher_discount.quantize(Decimal("0.01"))
+        
+        return voucher_discount, applied_voucher, None
+        
+    except VoucherAssignment.DoesNotExist:
+        return Decimal("0.00"), None, f"Invalid voucher code '{voucher_code}'"
+
+
+def _get_checkout_initial_data(request, profile):
+    """
+    Get initial form data for checkout, prioritizing default address.
+    
+    Returns:
+        dict: Initial data for CheckoutForm
+    """
+    initial_data = {}
+    
+    # Try to load default address first
+    default_address = CustomerAddress.objects.filter(
+        customer=profile,
+        is_default=True
+    ).first()
+    
+    if default_address:
+        # Pre-fill from saved default address
+        initial_data["recipient_name"] = default_address.recipient_name
+        initial_data["mobile_number"] = default_address.mobile_number
+        initial_data["email"] = default_address.email or request.user.email
+        initial_data["postal_code"] = default_address.postal_code
+        initial_data["address_line1"] = default_address.address_line1
+        initial_data["address_line2"] = default_address.address_line2 or ""
+        initial_data["delivery_notes"] = default_address.delivery_notes or ""
+    else:
+        # Fall back to user profile data
+        if request.user.email:
+            initial_data["email"] = request.user.email
+        if request.user.first_name and request.user.last_name:
+            initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
+        elif request.user.username:
+            initial_data["recipient_name"] = request.user.username
+    
+    return initial_data
+
+
+def _get_checkout_context_data(profile):
+    """
+    Get common context data for checkout pages.
+    
+    Returns:
+        dict: Context data with saved_addresses and available_vouchers
+    """
+    saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
+    available_vouchers = VoucherAssignment.objects.select_related('voucher').filter(
+        customer=profile,
+        used=False,
+        expires_at__gt=timezone.now()
+    ).order_by('expires_at')
+    
+    return {
+        "saved_addresses": saved_addresses,
+        "available_vouchers": available_vouchers,
+    }
+
+
+def _create_order_from_checkout(form, profile, items_data, total_amount, voucher_discount, applied_voucher):
+    """
+    Create order and order items from checkout data.
+    Handles inventory updates, voucher marking, and address saving.
+    
+    Args:
+        form: Validated CheckoutForm
+        profile: Customer profile
+        items_data: List of dicts with 'product' and 'quantity' keys
+        total_amount: Final total after discount
+        voucher_discount: Discount amount
+        applied_voucher: VoucherAssignment object or None
+        
+    Returns:
+        Order: Created order object
+        
+    Raises:
+        Exception: On order creation failure
+    """
+    # Build payload for payment processing
+    payload = {
+        "customer_info": {
+            "recipient_name": form.cleaned_data["recipient_name"],
+            "mobile_number": form.cleaned_data["mobile_number"],
+            "email": form.cleaned_data.get("email", ""),
+            "postal_code": form.cleaned_data["postal_code"],
+            "address_line1": form.cleaned_data["address_line1"],
+            "address_line2": form.cleaned_data.get("address_line2", ""),
+            "delivery_notes": form.cleaned_data.get("delivery_notes", ""),
+        },
+        "payment_info": {
+            "cardholder_name": form.cleaned_data["cardholder_name"],
+            "card_number": form.cleaned_data["card_number"],
+            "expiry": form.cleaned_data["expiry"],
+            "cvv": form.cleaned_data["cvv"],
+        },
+        "order_info": {
+            "items": items_data,
+            "cart_total": total_amount,
+            "customer_profile": profile,
+        }
+    }
+    
+    # Process checkout (placeholder for payment gateway)
+    order_id = perform_checkout(payload)
+    
+    # Create order record
+    order = Order.objects.create(
+        customer=profile,
+        total_amount=total_amount,
+        voucher_code=applied_voucher.voucher.code if applied_voucher else None,
+        voucher_discount=voucher_discount,
+        status=Order.StatusChoices.PAID,
+    )
+    
+    # Create order items
+    order_items = [
+        OrderItem(
+            order=order,
+            product=item_data['product'] if isinstance(item_data, dict) else item_data.product,
+            quantity=item_data['quantity'] if isinstance(item_data, dict) else item_data.quantity,
+            unit_price=(item_data['product'] if isinstance(item_data, dict) else item_data.product).unit_price,
+        )
+        for item_data in items_data
+    ]
+    OrderItem.objects.bulk_create(order_items)
+    
+    # Create inventory history entries
+    try:
+        from admin_panel.models import InventoryHistory
+        for oi in order_items:
+            try:
+                InventoryHistory.objects.create(
+                    product=oi.product,
+                    movement_type='outgoing',
+                    quantity=oi.quantity,
+                    reference_id=order.pk,
+                    notes=f'Outgoing from order {order.pk}'
+                )
+            except Exception:
+                continue
+    except Exception:
+        pass
+    
+    # Update product inventory
+    for item_data in items_data:
+        product = item_data['product'] if isinstance(item_data, dict) else item_data.product
+        quantity = item_data['quantity'] if isinstance(item_data, dict) else item_data.quantity
+        Product.objects.select_for_update().filter(pk=product.pk).update(
+            quantity_on_hand=F("quantity_on_hand") - quantity
+        )
+    
+    # Mark voucher as used
+    if applied_voucher:
+        applied_voucher.used = True
+        applied_voucher.save()
+    
+    # Save address if requested
+    if form.cleaned_data.get("save_address"):
+        CustomerAddress.objects.create(
+            customer=profile,
+            label=form.cleaned_data.get("address_label", ""),
+            recipient_name=form.cleaned_data["recipient_name"],
+            mobile_number=form.cleaned_data["mobile_number"],
+            email=form.cleaned_data.get("email", ""),
+            postal_code=form.cleaned_data["postal_code"],
+            address_line1=form.cleaned_data["address_line1"],
+            address_line2=form.cleaned_data.get("address_line2", ""),
+            delivery_notes=form.cleaned_data.get("delivery_notes", ""),
+            is_default=form.cleaned_data.get("set_as_default", False)
+        )
+    
+    return order
 
 
 def home(request):
@@ -331,9 +541,6 @@ def logout_view(request):
 
 @login_required
 def profile_view(request):
-    from admin_panel.models import VoucherAssignment
-    from django.utils import timezone
-    
     profile = _get_or_create_profile(request.user)
     saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
     
@@ -626,69 +833,21 @@ def checkout(request):
     
     # Handle form submission
     if request.method == "POST":
-        # Check if this is just a voucher application (not final checkout)
-        apply_voucher_only = request.POST.get('apply_voucher') == 'true'
-        
         form = CheckoutForm(request.POST)
         
         # Validate and apply voucher if provided
-        voucher_code = request.POST.get("voucher_code", "").strip()
-        if voucher_code:
-                from admin_panel.models import VoucherAssignment
-                from django.utils import timezone
-                
-                try:
-                    voucher_assignment = VoucherAssignment.objects.select_related('voucher').get(
-                        voucher__code=voucher_code,
-                        customer=profile,
-                        used=False
-                    )
-                    
-                    # Check if expired
-                    if voucher_assignment.expires_at <= timezone.now():
-                        messages.error(request, f"Voucher code '{voucher_code}' has expired.")
-                    else:
-                        # Calculate discount
-                        percent_off = voucher_assignment.voucher.percent_off
-                        cap_amount = voucher_assignment.voucher.cap_amount
-                        
-                        voucher_discount = (cart_total * percent_off / Decimal("100")).quantize(Decimal("0.01"))
-                        if cap_amount > 0 and voucher_discount > cap_amount:
-                            voucher_discount = cap_amount
-                        
-                        final_total = cart_total - voucher_discount
-                        applied_voucher = voucher_assignment
-                        messages.success(request, f"Voucher '{voucher_code}' applied! You saved ${voucher_discount:.2f} ({percent_off}% off)")
-                        
-                except VoucherAssignment.DoesNotExist:
-                    messages.error(request, f"Invalid voucher code '{voucher_code}' or voucher not assigned to you.")
-        else:
-            final_total = cart_total
+        voucher_code = request.POST.get("voucher_code", "")
+        voucher_discount, applied_voucher, error_message = _validate_and_apply_voucher(
+            voucher_code, profile, cart_total
+        )
         
-        # If this is just applying voucher, re-render the form with discount shown
-        if apply_voucher_only:
-            # Pre-fill form with submitted data for re-display
-            form = CheckoutForm(request.POST)
-            saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
-            from admin_panel.models import VoucherAssignment
-            from django.utils import timezone
-            available_vouchers = VoucherAssignment.objects.select_related('voucher').filter(
-                customer=profile,
-                used=False,
-                expires_at__gt=timezone.now()
-            ).order_by('expires_at')
-            
-            context = {
-                "form": form,
-                "items": items,
-                "cart_total": cart_total,
-                "voucher_discount": voucher_discount,
-                "final_total": final_total,
-                "item_count": sum(item.quantity for item in items),
-                "saved_addresses": saved_addresses,
-                "available_vouchers": available_vouchers,
-            }
-            return render(request, "ecommercemodule/checkout.html", context)
+        if error_message:
+            messages.error(request, error_message)
+        elif applied_voucher:
+            percent_off = applied_voucher.voucher.percent_off
+            messages.success(request, f"Voucher '{voucher_code}' applied! You saved ${voucher_discount:.2f} ({percent_off}% off)")
+        
+        final_total = cart_total - voucher_discount
         
         if form.is_valid():
             # Check stock availability one more time before processing
@@ -702,101 +861,11 @@ def checkout(request):
                         )
                         return redirect("ecommercemodule:view_cart")
                 
-                # Build payload with cleaned form data
-                payload = {
-                    "customer_info": {
-                        "recipient_name": form.cleaned_data["recipient_name"],
-                        "mobile_number": form.cleaned_data["mobile_number"],
-                        "email": form.cleaned_data.get("email", ""),
-                        "postal_code": form.cleaned_data["postal_code"],
-                        "address_line1": form.cleaned_data["address_line1"],
-                        "address_line2": form.cleaned_data.get("address_line2", ""),
-                        "delivery_notes": form.cleaned_data.get("delivery_notes", ""),
-                    },
-                    "payment_info": {
-                        "cardholder_name": form.cleaned_data["cardholder_name"],
-                        "card_number": form.cleaned_data["card_number"],
-                        "expiry": form.cleaned_data["expiry"],
-                        "cvv": form.cleaned_data["cvv"],
-                    },
-                    "order_info": {
-                        "items": items,
-                        "cart_total": final_total,  # Use final_total for payment processing
-                        "customer_profile": _get_or_create_profile(request.user),
-                    }
-                }
-                
                 try:
-                    # Process checkout (placeholder - will integrate with payment gateway later)
-                    order_id = perform_checkout(payload)
-                    
-                    # Create order record with PAID status (since checkout is successful)
-                    profile = _get_or_create_profile(request.user)
-                    order = Order.objects.create(
-                        customer=profile,
-                        total_amount=final_total,  # Use final_total (after voucher discount)
-                        status=Order.StatusChoices.PAID,  # Set status to PAID automatically
+                    # Create order using helper function
+                    order = _create_order_from_checkout(
+                        form, profile, items, final_total, voucher_discount, applied_voucher
                     )
-                    
-                    # Mark voucher as used if applied
-                    if applied_voucher:
-                        applied_voucher.used = True
-                        applied_voucher.save()
-                    
-                    # Create order items
-                    order_items = [
-                        OrderItem(
-                            order=order,
-                            product=item.product,
-                            quantity=item.quantity,
-                            unit_price=item.product.unit_price,
-                        )
-                        for item in items
-                    ]
-                    OrderItem.objects.bulk_create(order_items)
-                    
-                    #-m new stuff here
-                    # Create outgoing inventory history entries for each order item
-                    try:
-                        from admin_panel.models import InventoryHistory
-
-                        for oi in order_items:
-                            try:
-                                InventoryHistory.objects.create(
-                                    product=oi.product,
-                                    movement_type='outgoing',
-                                    quantity=oi.quantity,
-                                    reference_id=order.pk,
-                                    notes=f'Outgoing from order {order.pk}'
-                                )
-                            except Exception:
-                                # Continue on individual failures
-                                continue
-                    except Exception:
-                        # If admin_panel.models isn't importable, skip history creation
-                        pass
-                    # -m new stuff ends here
-                    
-                    # Update product inventory
-                    for item in items:
-                        Product.objects.select_for_update().filter(pk=item.product.pk).update(
-                            quantity_on_hand=F("quantity_on_hand") - item.quantity
-                        )
-                    
-                    # Save address if requested
-                    if form.cleaned_data.get("save_address"):
-                        CustomerAddress.objects.create(
-                            customer=profile,
-                            label=form.cleaned_data.get("address_label", ""),
-                            recipient_name=form.cleaned_data["recipient_name"],
-                            mobile_number=form.cleaned_data["mobile_number"],
-                            email=form.cleaned_data.get("email", ""),
-                            postal_code=form.cleaned_data["postal_code"],
-                            address_line1=form.cleaned_data["address_line1"],
-                            address_line2=form.cleaned_data.get("address_line2", ""),
-                            delivery_notes=form.cleaned_data.get("delivery_notes", ""),
-                            is_default=form.cleaned_data.get("set_as_default", False)
-                        )
                     
                     # Clear the cart
                     cart.items.all().delete()
@@ -815,7 +884,6 @@ def checkout(request):
                         f"There was an error processing your order: {str(e)}. "
                         f"Please try again or contact support."
                     )
-                    # Don't clear the form so user can retry
         else:
             # Form validation failed - errors will be displayed inline
             messages.error(
@@ -824,46 +892,11 @@ def checkout(request):
             )
     else:
         # GET request - display empty form
-        # Pre-fill with user profile data if available
-        initial_data = {}
-        
-        # Try to load default address first
-        default_address = CustomerAddress.objects.filter(
-            customer=profile,
-            is_default=True
-        ).first()
-        
-        if default_address:
-            # Pre-fill from saved default address
-            initial_data["recipient_name"] = default_address.recipient_name
-            initial_data["mobile_number"] = default_address.mobile_number
-            initial_data["email"] = default_address.email or request.user.email
-            initial_data["postal_code"] = default_address.postal_code
-            initial_data["address_line1"] = default_address.address_line1
-            initial_data["address_line2"] = default_address.address_line2 or ""
-            initial_data["delivery_notes"] = default_address.delivery_notes or ""
-        else:
-            # Fall back to user profile data
-            if request.user.email:
-                initial_data["email"] = request.user.email
-            if request.user.first_name and request.user.last_name:
-                initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
-            elif request.user.username:
-                initial_data["recipient_name"] = request.user.username
-        
+        initial_data = _get_checkout_initial_data(request, profile)
         form = CheckoutForm(initial=initial_data)
     
-    # Get saved addresses for display
-    saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
-    
-    # Get available vouchers for display
-    from admin_panel.models import VoucherAssignment
-    from django.utils import timezone
-    available_vouchers = VoucherAssignment.objects.select_related('voucher').filter(
-        customer=profile,
-        used=False,
-        expires_at__gt=timezone.now()
-    ).order_by('expires_at')
+    # Get common context data
+    common_context = _get_checkout_context_data(profile)
     
     context = {
         "form": form,
@@ -872,8 +905,7 @@ def checkout(request):
         "voucher_discount": voucher_discount,
         "final_total": final_total,
         "item_count": sum(item.quantity for item in items),
-        "saved_addresses": saved_addresses,
-        "available_vouchers": available_vouchers,
+        **common_context,
     }
     
     return render(request, "ecommercemodule/checkout.html", context)
@@ -910,9 +942,17 @@ def order_detail(request, order_id):
     for item in order.items.all():
         item.user_review = user_reviews.get(item.product.id)
     
+    # Calculate subtotal (before discount)
+    subtotal = sum(item.line_total for item in order.items.all())
+    
+    # Get discount amount from order
+    discount_amount = order.voucher_discount if order.voucher_discount else Decimal("0.00")
+    
     return render(request, "ecommercemodule/order_detail.html", {
         "order": order,
         "user_reviews": user_reviews,
+        "subtotal": subtotal,
+        "discount_amount": discount_amount,
     })
 
 
@@ -1041,11 +1081,41 @@ def buy_again_checkout(request):
             'item_total': item_total
         })
     
+    # Get user profile
+    profile = _get_or_create_profile(request.user)
+    
     # Handle form submission
     if request.method == "POST":
         form = CheckoutForm(request.POST)
         
         if form.is_valid():
+            # Validate voucher if provided
+            voucher_code = form.cleaned_data.get("voucher_code", "")
+            voucher_discount, applied_voucher, error_message = _validate_and_apply_voucher(
+                voucher_code, profile, total_amount
+            )
+            
+            if error_message:
+                messages.error(request, error_message)
+                # Re-render with error
+                common_context = _get_checkout_context_data(profile)
+                context = {
+                    "form": form,
+                    "items": items_data,
+                    "cart_total": total_amount,
+                    "final_total": total_amount,
+                    "voucher_discount": Decimal("0.00"),
+                    "is_buy_again": True,
+                    **common_context,
+                }
+                return render(request, "ecommercemodule/checkout.html", context)
+            elif applied_voucher:
+                percent_off = applied_voucher.voucher.percent_off
+                messages.success(request, f"Voucher '{voucher_code}' applied! You saved ${voucher_discount:.2f} ({percent_off}% off)")
+            
+            # Calculate final total after discount
+            final_total = total_amount - voucher_discount
+            
             # Process the order
             with transaction.atomic():
                 # Double-check stock availability
@@ -1060,74 +1130,11 @@ def buy_again_checkout(request):
                         )
                         return redirect("ecommercemodule:order_history")
                 
-                # Build payload
-                payload = {
-                    "customer_info": {
-                        "recipient_name": form.cleaned_data["recipient_name"],
-                        "mobile_number": form.cleaned_data["mobile_number"],
-                        "email": form.cleaned_data.get("email", ""),
-                        "postal_code": form.cleaned_data["postal_code"],
-                        "address_line1": form.cleaned_data["address_line1"],
-                        "address_line2": form.cleaned_data.get("address_line2", ""),
-                        "delivery_notes": form.cleaned_data.get("delivery_notes", ""),
-                    },
-                    "payment_info": {
-                        "cardholder_name": form.cleaned_data["cardholder_name"],
-                        "card_number": form.cleaned_data["card_number"],
-                        "expiry": form.cleaned_data["expiry"],
-                        "cvv": form.cleaned_data["cvv"],
-                    },
-                    "order_info": {
-                        "items": items_data,
-                        "cart_total": total_amount,
-                        "customer_profile": _get_or_create_profile(request.user),
-                    }
-                }
-                
                 try:
-                    # Process checkout
-                    order_id = perform_checkout(payload)
-                    
-                    # Create order record with PAID status
-                    profile = _get_or_create_profile(request.user)
-                    order = Order.objects.create(
-                        customer=profile,
-                        total_amount=total_amount,
-                        status=Order.StatusChoices.PAID,
+                    # Create order using helper function
+                    order = _create_order_from_checkout(
+                        form, profile, items_data, final_total, voucher_discount, applied_voucher
                     )
-                    
-                    # Create order items
-                    order_items = [
-                        OrderItem(
-                            order=order,
-                            product=item_data['product'],
-                            quantity=item_data['quantity'],
-                            unit_price=item_data['product'].unit_price,
-                        )
-                        for item_data in items_data
-                    ]
-                    OrderItem.objects.bulk_create(order_items)
-                    
-                    # Update product inventory
-                    for item_data in items_data:
-                        Product.objects.select_for_update().filter(pk=item_data['product'].pk).update(
-                            quantity_on_hand=F("quantity_on_hand") - item_data['quantity']
-                        )
-                    
-                    # Save address if requested
-                    if form.cleaned_data.get("save_address"):
-                        CustomerAddress.objects.create(
-                            customer=profile,
-                            label=form.cleaned_data.get("address_label", ""),
-                            recipient_name=form.cleaned_data["recipient_name"],
-                            mobile_number=form.cleaned_data["mobile_number"],
-                            email=form.cleaned_data.get("email", ""),
-                            postal_code=form.cleaned_data["postal_code"],
-                            address_line1=form.cleaned_data["address_line1"],
-                            address_line2=form.cleaned_data.get("address_line2", ""),
-                            delivery_notes=form.cleaned_data.get("delivery_notes", ""),
-                            is_default=form.cleaned_data.get("set_as_default", False)
-                        )
                     
                     # Clear buy-again session data
                     request.session.pop('buy_again_items', None)
@@ -1149,44 +1156,20 @@ def buy_again_checkout(request):
             messages.error(request, "Please correct the errors below and try again.")
     else:
         # GET request - pre-fill form with user data
-        profile = _get_or_create_profile(request.user)
-        initial_data = {}
-        
-        # Try to load default address first
-        default_address = CustomerAddress.objects.filter(
-            customer=profile,
-            is_default=True
-        ).first()
-        
-        if default_address:
-            # Pre-fill from saved default address
-            initial_data["recipient_name"] = default_address.recipient_name
-            initial_data["mobile_number"] = default_address.mobile_number
-            initial_data["email"] = default_address.email or request.user.email
-            initial_data["postal_code"] = default_address.postal_code
-            initial_data["address_line1"] = default_address.address_line1
-            initial_data["address_line2"] = default_address.address_line2 or ""
-            initial_data["delivery_notes"] = default_address.delivery_notes or ""
-        else:
-            # Fall back to user profile data
-            if request.user.email:
-                initial_data["email"] = request.user.email
-            if request.user.first_name and request.user.last_name:
-                initial_data["recipient_name"] = f"{request.user.first_name} {request.user.last_name}"
-            elif request.user.username:
-                initial_data["recipient_name"] = request.user.username
-        
+        initial_data = _get_checkout_initial_data(request, profile)
         form = CheckoutForm(initial=initial_data)
     
-    # Get saved addresses for display
-    saved_addresses = CustomerAddress.objects.filter(customer=profile).order_by('-is_default', '-updated_at')
+    # Get common context data
+    common_context = _get_checkout_context_data(profile)
     
     context = {
         "form": form,
         "items": items_data,
         "cart_total": total_amount,
+        "final_total": total_amount,  # Will be updated if voucher applied
+        "voucher_discount": Decimal("0.00"),
         "is_buy_again": True,  # Flag to distinguish from regular checkout
-        "saved_addresses": saved_addresses,
+        **common_context,
     }
     
     return render(request, "ecommercemodule/checkout.html", context)
@@ -1405,10 +1388,8 @@ def validate_voucher(request):
     """
     AJAX endpoint to validate voucher code and return discount information.
     Returns JSON with validation result and discount details.
+    Works for both regular cart checkout and buy-again checkout.
     """
-    from admin_panel.models import VoucherAssignment
-    from django.utils import timezone
-    
     voucher_code = request.POST.get('voucher_code', '').strip().upper()
     
     if not voucher_code:
@@ -1418,14 +1399,25 @@ def validate_voucher(request):
         })
     
     profile = _get_or_create_profile(request.user)
-    cart = _ensure_cart(request)
     
-    # Calculate cart total
-    items = list(cart.items.select_related("product"))
-    cart_total = sum(
-        (item.product.unit_price * item.quantity for item in items),
-        Decimal("0.00")
-    )
+    # Check if this is buy-again checkout (items in session) or regular checkout (items in cart)
+    buy_again_items = request.session.get('buy_again_items')
+    
+    if buy_again_items:
+        # Calculate total from buy-again session items
+        cart_total = Decimal("0.00")
+        for item_info in buy_again_items:
+            product = Product.objects.filter(pk=item_info['product_id']).first()
+            if product:
+                cart_total += product.unit_price * item_info['quantity']
+    else:
+        # Calculate from regular cart
+        cart = _ensure_cart(request)
+        items = list(cart.items.select_related("product"))
+        cart_total = sum(
+            (item.product.unit_price * item.quantity for item in items),
+            Decimal("0.00")
+        )
     
     try:
         # Find voucher assignment for this user
@@ -1464,7 +1456,7 @@ def validate_voucher(request):
     except VoucherAssignment.DoesNotExist:
         return JsonResponse({
             'valid': False,
-            'message': f"Invalid voucher code '{voucher_code}' or voucher not assigned to you."
+            'message': f"Invalid voucher code '{voucher_code}'."
         })
 
 

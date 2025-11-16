@@ -383,8 +383,9 @@
                                        id="{{ form.voucher_code.id_for_label }}"
                                        value="{{ form.voucher_code.value|default:'' }}"
                                        class="form-control text-uppercase {% if form.voucher_code.errors %}is-invalid{% endif %}"
-                                       placeholder="{{ form.voucher_code.field.widget.attrs.placeholder }}"
-                                       maxlength="32">
+                                       placeholder="Enter voucher code"
+                                       maxlength="32"
+                                       autocomplete="off">
                                 <button type="button" class="btn btn-primary" id="applyVoucherBtn">
                                     <i class="bi bi-check-circle me-1"></i>Apply Code
                                 </button>
@@ -394,8 +395,8 @@
                                     </div>
                                 {% endif %}
                             </div>
-                            <div id="voucherFeedback" class="mt-2" style="display: none;"></div>
-                            <small class="text-muted">Enter your voucher code and click "Apply Code" to see the discount</small>
+                            <small class="text-muted">Enter your voucher code and click "Apply Code" </small>
+                            <!-- Voucher feedback will be inserted here by JavaScript -->
                         </div>
                         
                         {% if available_vouchers %}
@@ -417,10 +418,10 @@
                                                 <i class="bi bi-clock"></i> Expires: {{ assignment.expires_at|date:"d M Y" }}
                                             </div>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-outline-primary apply-voucher-btn" 
-                                                data-code="{{ assignment.voucher.code }}"
-                                                onclick="document.getElementById('{{ form.voucher_code.id_for_label }}').value='{{ assignment.voucher.code }}'; document.getElementById('applyVoucherBtn').click();">
-                                            Apply
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-primary quick-apply-voucher" 
+                                                data-code="{{ assignment.voucher.code }}">
+                                            <i class="bi bi-arrow-right-circle me-1"></i>Apply
                                         </button>
                                     </div>
                                     {% endfor %}
@@ -594,7 +595,11 @@
                             </div>
                         </div>
                         <div class="text-end fw-semibold">
-                            ${{ item.product.unit_price|floatformat:2 }}
+                            {% if is_buy_again %}
+                                ${{ item.item_total|floatformat:2 }}
+                            {% else %}
+                                ${{ item.product.unit_price|floatformat:2 }}
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -617,7 +622,7 @@
                             <span id="discountAmount">-${{ voucher_discount|floatformat:2 }}</span>
                         </div>
                         {% else %}
-                        <div class="d-flex justify-content-between mb-2 text-success" id="discountRow" style="display: none !important;" data-discount="0" data-code="">
+                        <div class="d-flex justify-content-between mb-2 text-success d-none" id="discountRow" data-discount="0" data-code="">
                             <span>
                                 <i class="bi bi-ticket-perforated me-1"></i>Voucher Discount (<span id="voucherCodeDisplay"></span>)
                             </span>
@@ -649,6 +654,227 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ========================================
+    // Voucher System State
+    // ========================================
+    let currentVoucherCode = '{{ request.POST.voucher_code|upper|default:"" }}';
+    let currentDiscount = parseFloat('{{ voucher_discount|default:"0" }}') || 0;
+    const subtotal = parseFloat(document.getElementById('subtotalAmount').dataset.subtotal) || 0;
+    
+    // ========================================
+    // AJAX Voucher Validation (Client-Side)
+    // ========================================
+    const voucherInput = document.getElementById('{{ form.voucher_code.id_for_label }}');
+    const applyVoucherBtn = document.getElementById('applyVoucherBtn');
+    const discountRow = document.getElementById('discountRow');
+    const discountAmount = document.getElementById('discountAmount');
+    const finalTotalAmount = document.getElementById('finalTotalAmount');
+    const voucherCodeDisplay = document.getElementById('voucherCodeDisplay');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Create message container for voucher feedback
+    const voucherFeedback = document.createElement('div');
+    voucherFeedback.id = 'voucherFeedback';
+    voucherFeedback.className = 'mt-2';
+    voucherInput.parentElement.parentElement.appendChild(voucherFeedback);
+    
+    // Function to show voucher message
+    function showVoucherMessage(message, type = 'success') {
+        const iconMap = {
+            success: 'check-circle-fill',
+            error: 'exclamation-triangle-fill',
+            info: 'info-circle-fill'
+        };
+        
+        const alertType = type === 'error' ? 'danger' : type;
+        
+        voucherFeedback.innerHTML = `
+            <div class="alert alert-${alertType} alert-dismissible fade show" role="alert">
+                <i class="bi bi-${iconMap[type]} me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        
+        // Auto-dismiss after 5 seconds for success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                const alert = voucherFeedback.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+    }
+    
+    // Function to update order summary
+    function updateOrderSummary(discount, code) {
+        currentDiscount = discount;
+        currentVoucherCode = code;
+        
+        if (discount > 0 && code) {
+            // Show discount row (remove inline style to allow display)
+            discountRow.style.removeProperty('display');
+            discountRow.classList.remove('d-none');
+            discountRow.dataset.discount = discount;
+            discountRow.dataset.code = code;
+            discountAmount.textContent = `-$${discount.toFixed(2)}`;
+            voucherCodeDisplay.textContent = code;
+            
+            // Update final total
+            const finalTotal = Math.max(0, subtotal - discount);
+            finalTotalAmount.textContent = `$${finalTotal.toFixed(2)}`;
+            
+            // Update submit button
+            submitBtn.innerHTML = `<i class="bi bi-lock-fill me-2"></i>Place Order - $${finalTotal.toFixed(2)}`;
+        } else {
+            // Hide discount row completely
+            discountRow.classList.add('d-none');
+            discountRow.dataset.discount = '0';
+            discountRow.dataset.code = '';
+            
+            // Reset final total
+            finalTotalAmount.textContent = `$${subtotal.toFixed(2)}`;
+            
+            // Reset submit button
+            submitBtn.innerHTML = `<i class="bi bi-lock-fill me-2"></i>Place Order - $${subtotal.toFixed(2)}`;
+        }
+    }
+    
+    // Function to validate voucher via AJAX
+    function validateVoucher(code) {
+        if (!code || code.trim() === '') {
+            showVoucherMessage('Please enter a voucher code.', 'error');
+            updateOrderSummary(0, '');
+            return;
+        }
+        
+        // Disable button and show loading
+        applyVoucherBtn.disabled = true;
+        applyVoucherBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validating...';
+        
+        // Clear previous messages
+        voucherFeedback.innerHTML = '';
+        
+        // Get CSRF token
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        // Make AJAX request
+        fetch('{% url "ecommercemodule:validate_voucher_ajax" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrftoken
+            },
+            body: `voucher_code=${encodeURIComponent(code.toUpperCase())}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.valid) {
+                // Valid voucher
+                const discount = parseFloat(data.discount) || 0;
+                const percentOff = parseFloat(data.percent_off) || 0;
+                const capAmount = data.cap_amount ? `max $${parseFloat(data.cap_amount).toFixed(2)}` : '';
+                
+                showVoucherMessage(
+                    `Voucher '${data.code}' applied! You saved $${discount.toFixed(2)} (${percentOff}% off${capAmount ? ', ' + capAmount : ''})`,
+                    'success'
+                );
+                
+                updateOrderSummary(discount, data.code);
+                
+                // Update the input field with uppercase code
+                voucherInput.value = data.code;
+            } else {
+                // Invalid voucher
+                showVoucherMessage(data.message || 'Invalid voucher code.', 'error');
+                updateOrderSummary(0, '');
+            }
+        })
+        .catch(error => {
+            console.error('Error validating voucher:', error);
+            showVoucherMessage('Error validating voucher. Please try again.', 'error');
+            updateOrderSummary(0, '');
+        })
+        .finally(() => {
+            // Reset button
+            applyVoucherBtn.disabled = false;
+            applyVoucherBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Apply Code';
+        });
+    }
+    
+    // Apply voucher button click handler
+    if (applyVoucherBtn) {
+        applyVoucherBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const code = voucherInput.value.trim();
+            validateVoucher(code);
+        });
+    }
+    
+    // Allow Enter key to apply voucher
+    if (voucherInput) {
+        voucherInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyVoucherBtn.click();
+            }
+        });
+        
+        // Convert to uppercase as user types
+        voucherInput.addEventListener('input', function(e) {
+            this.value = this.value.toUpperCase();
+        });
+    }
+    
+    // Quick apply voucher buttons
+    const quickApplyButtons = document.querySelectorAll('.quick-apply-voucher');
+    quickApplyButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const code = this.dataset.code;
+            voucherInput.value = code;
+            validateVoucher(code);
+        });
+    });
+    
+    // Remove voucher button (if user wants to clear discount)
+    const removeVoucherBtn = document.createElement('button');
+    removeVoucherBtn.type = 'button';
+    removeVoucherBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+    removeVoucherBtn.innerHTML = '<i class="bi bi-x-circle"></i> Remove';
+    removeVoucherBtn.style.display = 'none';
+    removeVoucherBtn.id = 'removeVoucherBtn';
+    
+    applyVoucherBtn.parentElement.appendChild(removeVoucherBtn);
+    
+    removeVoucherBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        voucherInput.value = '';
+        updateOrderSummary(0, '');
+        voucherFeedback.innerHTML = '';
+        this.style.display = 'none';
+    });
+    
+    // Show/hide remove button based on whether voucher is applied
+    function toggleRemoveButton() {
+        if (currentDiscount > 0 && currentVoucherCode) {
+            removeVoucherBtn.style.display = 'inline-block';
+        } else {
+            removeVoucherBtn.style.display = 'none';
+        }
+    }
+    
+    // Update remove button visibility on page load
+    toggleRemoveButton();
+    
+    // Override the original updateOrderSummary to also toggle remove button
+    const originalUpdateOrderSummary = updateOrderSummary;
+    updateOrderSummary = function(discount, code) {
+        originalUpdateOrderSummary(discount, code);
+        toggleRemoveButton();
+    };
+    
     // ========================================
     // Postal Code Lookup (Singapore OneMap API)
     // ========================================
@@ -810,147 +1036,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // ========================================
-    // Voucher Apply Button - Smooth AJAX validation
-    // ========================================
-    const voucherCodeInput = document.getElementById('{{ form.voucher_code.id_for_label }}');
-    const applyVoucherBtn = document.getElementById('applyVoucherBtn');
-    const voucherFeedback = document.getElementById('voucherFeedback');
-    const discountRow = document.getElementById('discountRow');
-    const discountAmount = document.getElementById('discountAmount');
-    const voucherCodeDisplay = document.getElementById('voucherCodeDisplay');
-    const finalTotalAmount = document.getElementById('finalTotalAmount');
-    const subtotalAmount = document.getElementById('subtotalAmount');
-    
-    // Read numeric values from data-* attributes to avoid inline template syntax in JS
-    const subtotalEl = document.getElementById('subtotalAmount');
-    const discountRowEl = document.getElementById('discountRow');
-    const subtotal = parseFloat(subtotalEl?.dataset.subtotal || '0');
-    let currentDiscount = parseFloat(discountRowEl?.dataset.discount || '0');
-    
-    function showFeedback(message, type) {
-        voucherFeedback.style.display = 'block';
-        voucherFeedback.className = `alert alert-${type} alert-dismissible fade show`;
-        voucherFeedback.innerHTML = `
-            <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'x-circle'}-fill me-2"></i>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-    }
-    
-    function updateOrderSummary(discount, code) {
-        currentDiscount = discount;
-        const newTotal = Math.max(0, subtotal - discount);
-        
-        if (discount > 0) {
-            // Show discount row with smooth animation
-            discountRow.style.display = 'flex';
-            discountAmount.textContent = `-$${discount.toFixed(2)}`;
-            voucherCodeDisplay.textContent = code.toUpperCase();
-            
-            // Update total with highlight effect
-            finalTotalAmount.style.transition = 'all 0.3s ease';
-            finalTotalAmount.style.transform = 'scale(1.1)';
-            finalTotalAmount.style.color = '#198754';
-            finalTotalAmount.textContent = `$${newTotal.toFixed(2)}`;
-        } else {
-            // Hide discount row
-            discountRow.style.display = 'none';
-            finalTotalAmount.textContent = `$${subtotal.toFixed(2)}`;
-        }
-    }
-    
-    // Apply Code button - AJAX validation
-    if (applyVoucherBtn && voucherCodeInput) {
-        applyVoucherBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const code = voucherCodeInput.value.trim().toUpperCase();
-            
-            if (!code) {
-                showFeedback('Please enter a voucher code first.', 'warning');
-                voucherCodeInput.focus();
-                return;
-            }
-            
-            // Show loading state
-            const originalHTML = this.innerHTML;
-            this.disabled = true;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validating...';
-            voucherCodeInput.disabled = true;
-            
-            try {
-                // Send AJAX request to validate voucher
-                const formData = new FormData();
-                formData.append('voucher_code', code);
-                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-                
-                const response = await fetch('{% url "ecommercemodule:validate_voucher" %}', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-                
-                const data = await response.json();
-                
-                if (data.valid) {
-                    // Success - update UI smoothly
-                    showFeedback(
-                        `<strong>Success!</strong> Voucher "${code}" applied. You saved <strong>$${data.discount.toFixed(2)}</strong> (${data.percent_off}% off)`,
-                        'success'
-                    );
-                    updateOrderSummary(data.discount, code);
-                    
-                    // Update form value and add visual feedback
-                    voucherCodeInput.value = code;
-                    voucherCodeInput.classList.remove('is-invalid');
-                    voucherCodeInput.classList.add('is-valid');
-                } else {
-                    // Error - show message ONLY; keep existing discount summary unchanged
-                    showFeedback(data.message || 'Invalid voucher code.', 'danger');
-                    voucherCodeInput.value = '';
-                    voucherCodeInput.classList.remove('is-valid');
-                    voucherCodeInput.classList.add('is-invalid');
-                }
-            } catch (error) {
-                console.error('Voucher validation error:', error);
-                showFeedback('Unable to validate voucher. Please try again later.', 'danger');
-            } finally {
-                // Reset button state
-                this.disabled = false;
-                this.innerHTML = originalHTML;
-                voucherCodeInput.disabled = false;
-            }
-        });
-        
-        // Allow Enter key to apply voucher
-        voucherCodeInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                applyVoucherBtn.click();
-            }
-        });
-        
-        // Clear validation state on input change
-        voucherCodeInput.addEventListener('input', function() {
-            this.classList.remove('is-valid', 'is-invalid');
-        });
-    }
-    
-    // ========================================
-    // Submit Button Loading State
+    // Final Form Submission Handler
     // ========================================
     const form = document.getElementById('checkoutForm');
-    const submitBtn = document.getElementById('submitBtn');
     
-    if (submitBtn && form) {
+    if (form) {
         form.addEventListener('submit', function(e) {
-            // Show loading state when form is submitted
+            // Show loading state for final checkout
             submitBtn.disabled = true;
             submitBtn.innerHTML = `
                 <span class="spinner-border spinner-border-sm me-2"></span>
                 Processing...
             `;
+            
+            // If a voucher is applied, ensure it's in the form
+            if (currentDiscount > 0 && currentVoucherCode) {
+                voucherInput.value = currentVoucherCode;
+            }
         });
     }
 });
